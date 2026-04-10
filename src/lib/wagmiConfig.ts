@@ -4,9 +4,14 @@ import { injected, coinbaseWallet } from 'wagmi/connectors';
 
 export const config = createConfig({
   chains: [celoAlfajores, celo],
-  multiInjectedProviderDiscovery: true,
+  multiInjectedProviderDiscovery: false,
   connectors: [
-    injected(),
+    injected({
+      target: 'metaMask',
+    }),
+    injected({
+      target: 'coinbaseWallet',
+    }),
     coinbaseWallet({
       projectId: 'brainstake',
       appName: 'BrainStake',
