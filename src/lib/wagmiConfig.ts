@@ -1,11 +1,16 @@
 import { createConfig, http, createStorage } from 'wagmi';
 import { celo, celoAlfajores } from 'wagmi/chains';
-import { injected } from 'wagmi/connectors';
+import { injected, coinbaseWallet } from 'wagmi/connectors';
 
 export const config = createConfig({
   chains: [celoAlfajores, celo],
+  multiInjectedProviderDiscovery: true,
   connectors: [
     injected(),
+    coinbaseWallet({
+      projectId: 'brainstake',
+      appName: 'BrainStake',
+    }),
   ],
   storage: typeof window !== 'undefined' ? createStorage({
     storage: window.localStorage,
