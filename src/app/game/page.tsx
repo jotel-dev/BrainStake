@@ -8,7 +8,7 @@ import { BrainCircuit, Clock, Trophy, Loader2, CheckCircle, XCircle, ArrowRight 
 import questionsData from "@/data/questions.json";
 
 const TOTAL_QUESTIONS = 3;
-const QUESTION_TIME = 7;
+const QUESTION_TIME = 10;
 
 type Question = {
   id: number;
@@ -73,7 +73,9 @@ function GameComponent() {
 
   const showQuestion = (idx: number) => {
     if (idx >= TOTAL_QUESTIONS) {
-      finishGame();
+      setTimeout(() => {
+        finishGame();
+      }, 500);
       return;
     }
 
@@ -103,7 +105,7 @@ function GameComponent() {
     
     setTimeout(() => {
       showQuestion(currentIndex);
-    }, 1500);
+    }, 2000);
   };
 
   const submitAnswer = (answer: string) => {
@@ -122,7 +124,7 @@ function GameComponent() {
 
     setTimeout(() => {
       showQuestion(currentIndex);
-    }, 1000);
+    }, 1500);
   };
 
   const finishGame = () => {
@@ -137,10 +139,10 @@ function GameComponent() {
       score,
       total: TOTAL_QUESTIONS,
       avgTime,
-      win: score >= 2
+      win: score === TOTAL_QUESTIONS
     };
 
-    router.push(`/result?data=${encodeURIComponent(JSON.stringify(finalData))}`);
+    router.push(`/result?data=${encodeURIComponent(JSON.stringify(finalData))}&mode=${modeParam || 'normal'}`);
   };
 
   if (gameState === "ready") {

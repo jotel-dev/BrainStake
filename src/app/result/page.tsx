@@ -12,6 +12,8 @@ function ResultComponent() {
   const { recordMatch } = useUserStore();
 
   const dataRaw = searchParams.get("data");
+  const mode = searchParams.get("mode");
+  const isFreeMode = mode === "free";
 
   let resultData = { score: 0, total: 3, avgTime: "0.0", win: false };
   if (dataRaw) {
@@ -24,10 +26,12 @@ function ResultComponent() {
 
   const { score, total, avgTime, win } = resultData;
 
-  // Record match when component mounts
+  // Record match when component mounts (only for stake mode)
   useEffect(() => {
-    const earnedXP = score * 10; // 10 XP per correct answer
-    const earnedCELO = win ? (total === 3 ? 0.05 : 0.03) : 0; // Win multiplier
+    if (isFreeMode) return;
+    
+    const earnedXP = score * 10;
+    const earnedCELO = win ? (total === 3 ? 0.05 : 0.03) : 0;
     
     recordMatch(
       {
@@ -38,7 +42,7 @@ function ResultComponent() {
       },
       score
     );
-  }, []);
+  }, [isFreeMode]);
 
   return (
     <div className="flex flex-col h-full w-full justify-center p-6 text-center overflow-y-auto">
@@ -64,8 +68,12 @@ function ResultComponent() {
       
       <p className="text-slate-400 font-medium mb-10 text-lg">
         {win 
-          ? `Congratulations! You won 0.05 cUSD!` 
-          : "Stake lost. Keep practicing!"}
+          ? isFreeMode 
+            ? "Great job! You beat the bot!" 
+            : "Congratulations! You won 0.05 cUSD!" 
+          : isFreeMode 
+            ? "Keep practicing!" 
+            : "Stake lost. Keep practicing!"}
       </p>
 
       {/* Score Card */}
@@ -108,7 +116,7 @@ function ResultComponent() {
       {/* Actions */}
       <div className="space-y-3">
         <button 
-          onClick={() => router.push("/")}
+          onClick={() => router.push(`/game?category=sports&mode=${mode || 'normal'}`)}
           className="w-full py-4 rounded-2xl bg-[#35D07F] hover:bg-[#35D07F]/90 text-black font-extrabold transition-all active:scale-[0.98] flex items-center justify-center gap-2"
         >
           <ArrowRight className="w-5 h-5" />

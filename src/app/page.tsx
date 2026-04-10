@@ -6,7 +6,7 @@ import { useAccount, useWriteContract, useReadContract } from "wagmi";
 import { parseUnits, formatUnits } from "viem";
 import WalletConnect from "@/components/WalletConnect";
 import { CUSD_ADDRESS, TRIVIA_STAKE_ADDRESS, ERC20_ABI } from "@/lib/contract";
-import { Swords, Loader2, Flame, Trophy, Play, Sparkles, AlertTriangle, Zap, Trophy as SportIcon, Cpu, Newspaper, Film } from "lucide-react";
+import { Swords, Loader2, Flame, Trophy, Play, Sparkles, AlertTriangle, Zap, Trophy as SportIcon, Cpu, Newspaper, Film, Bot as BotIcon } from "lucide-react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUserStore } from "@/lib/store";
@@ -369,14 +369,21 @@ export default function Home() {
                   )}
                 </div>
 
-                <div className="mt-6 w-full z-10">
+                <div className="mt-6 w-full z-10 space-y-2">
+                  <button
+                    onClick={() => {
+                      router.push('/game?category=sports&mode=free');
+                    }}
+                    className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-xl border border-white/10 transition-all active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <BotIcon className="w-4 h-4" /> Play Free Bot
+                  </button>
                   <button
                     onClick={() => handleStakeAndPlay("normal")}
-                    className="w-full bg-[#35D07F] hover:bg-[#35D07F]/90 text-black font-extrabold py-4 rounded-2xl shadow-[0_4px_16px_rgba(53,208,127,0.3)] transition-all active:scale-95 flex items-center justify-center gap-2"
+                    className="w-full bg-[#35D07F] hover:bg-[#35D07F]/90 text-black font-extrabold py-3 rounded-xl shadow-[0_4px_16px_rgba(53,208,127,0.3)] transition-all active:scale-95 flex items-center justify-center gap-2"
                   >
-                    <Swords className="w-5 h-5" /> Stake & Play
+                    <Swords className="w-4 h-4" /> Stake & Play (0.05 cUSD)
                   </button>
-                  <p className="text-center text-zinc-500 text-xs mt-2">Stake 0.05 cUSD per round</p>
                 </div>
               </div>
             </div>
