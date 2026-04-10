@@ -10,7 +10,7 @@ import Image from "next/image";
 
 export default function ProfilePage() {
   const { address, isConnected } = useAccount();
-  const { xp, level, winStreak, maxWinStreak, gamesPlayed, wins, matchHistory } = useUserStore();
+  const { xp, level, winStreak, maxWinStreak, gamesPlayed, wins, bestScore, matchHistory } = useUserStore();
 
   const [mounted, setMounted] = useState(false);
 
@@ -102,14 +102,18 @@ export default function ProfilePage() {
                 <span className="text-zinc-500 text-sm">Member Since</span>
                 <span className="text-white text-sm font-bold">April 2026</span>
              </div>
-             <div className="flex justify-between items-center pb-3 border-b border-white/5">
-                <span className="text-zinc-500 text-sm">Win Rate</span>
-                <span className="text-emerald-400 text-sm font-bold">{winRate}%</span>
-             </div>
-             <div className="flex justify-between items-center">
-                <span className="text-zinc-500 text-sm">Max Streak</span>
-                <span className="text-orange-400 text-sm font-bold">{maxWinStreak} wins</span>
-             </div>
+<div className="flex justify-between items-center pb-3 border-b border-white/5">
+                 <span className="text-zinc-500 text-sm">Win Rate</span>
+                 <span className="text-emerald-400 text-sm font-bold">{winRate}%</span>
+              </div>
+              <div className="flex justify-between items-center pb-3 border-b border-white/5">
+                 <span className="text-zinc-500 text-sm">Best Score</span>
+                 <span className="text-blue-400 text-sm font-bold">{bestScore}/3</span>
+              </div>
+              <div className="flex justify-between items-center">
+                 <span className="text-zinc-500 text-sm">Max Streak</span>
+                 <span className="text-orange-400 text-sm font-bold">{maxWinStreak} wins</span>
+              </div>
           </div>
         </div>
 

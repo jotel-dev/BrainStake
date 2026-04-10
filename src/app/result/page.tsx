@@ -1,104 +1,128 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useAccount } from "wagmi";
-import { Trophy, Frown, Scale, ArrowLeft, ExternalLink } from "lucide-react";
-import { Suspense } from "react";
+import { Trophy, Frown, Clock, ArrowLeft, ArrowRight, Share2 } from "lucide-react";
+import { Suspense, useEffect } from "react";
+import Link from "next/link";
+import { useUserStore } from "@/lib/store";
 
 function ResultComponent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { address } = useAccount();
+  const { recordMatch } = useUserStore();
 
-  const winner = searchParams.get("winner");
-  const scoresRaw = searchParams.get("scores");
+  const dataRaw = searchParams.get("data");
 
-  let scores: Record<string, number> = {};
-  if (scoresRaw) {
+  let resultData = { score: 0, total: 3, avgTime: "0.0", win: false };
+  if (dataRaw) {
     try {
-      scores = JSON.parse(decodeURIComponent(scoresRaw));
+      resultData = JSON.parse(decodeURIComponent(dataRaw));
     } catch (e) {
       console.error(e);
     }
   }
 
-  const myAddress = address;
-  const opponentAddress = Object.keys(scores).find(k => k !== myAddress) || "Opponent";
-  
-  const myScore = myAddress ? scores[myAddress] || 0 : 0;
-  const opponentScore = scores[opponentAddress] || 0;
+  const { score, total, avgTime, win } = resultData;
 
-  const isWinner = winner === myAddress;
-  const isTie = winner === "tie";
-  const isLoser = !isWinner && !isTie;
+  // Record match when component mounts
+  useEffect(() => {
+    const earnedXP = score * 10; // 10 XP per correct answer
+    const earnedCELO = win ? (total === 3 ? 0.05 : 0.03) : 0; // Win multiplier
+    
+    recordMatch(
+      {
+        opponent: "BrainStake Bot",
+        result: win ? "win" : "loss",
+        earnedCELO,
+        earnedXP,
+      },
+      score
+    );
+  }, []);
 
   return (
     <div className="flex flex-col h-full w-full justify-center p-6 text-center overflow-y-auto">
       
       {/* Icon Area */}
       <div className="flex justify-center mb-6">
-        {isWinner && (
+        {win ? (
           <div className="w-24 h-24 rounded-full bg-emerald-500/20 flex items-center justify-center relative">
             <Trophy className="w-12 h-12 text-emerald-400" />
             <div className="absolute inset-0 rounded-full border-4 border-emerald-400 animate-ping opacity-20"></div>
           </div>
-        )}
-        {isLoser && (
+        ) : (
           <div className="w-24 h-24 rounded-full bg-rose-500/20 flex items-center justify-center">
             <Frown className="w-12 h-12 text-rose-400" />
-          </div>
-        )}
-        {isTie && (
-          <div className="w-24 h-24 rounded-full bg-indigo-500/20 flex items-center justify-center">
-            <Scale className="w-12 h-12 text-indigo-400" />
           </div>
         )}
       </div>
 
       {/* Main Status Text */}
-      <h1 className={`text-4xl font-extrabold mb-2 tracking-tight ${isWinner ? 'text-emerald-400' : isLoser ? 'text-rose-400' : 'text-indigo-400'}`}>
-        {isWinner ? "You Win!" : isLoser ? "You Lost" : "It's a Tie!"}
+      <h1 className={`text-4xl font-extrabold mb-2 tracking-tight ${win ? 'text-emerald-400' : 'text-rose-400'}`}>
+        {win ? "You Won!" : "Better Luck Next Time!"}
       </h1>
       
       <p className="text-slate-400 font-medium mb-10 text-lg">
-        {isWinner ? "+1.0 cUSD" : isLoser ? "-0.5 cUSD stake lost" : "Refunded 0.5 cUSD"}
+        {win 
+          ? `Congratulations! You won 0.05 cUSD!` 
+          : "Stake lost. Keep practicing!"}
       </p>
 
-      {/* Scoreboard */}
-      <div className="bg-slate-800/60 rounded-3xl p-5 border border-slate-700/50 mb-8 backdrop-blur-sm">
-        <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-700/50">
-          <div className="text-left">
-            <p className="text-xs text-slate-500 uppercase font-bold tracking-widest mb-1">You</p>
-            <p className="text-2xl font-mono font-bold text-white">{myScore}</p>
+      {/* Score Card */}
+      <div className="bg-zinc-900/60 rounded-3xl p-6 border border-white/5 mb-8 backdrop-blur-sm">
+        <div className="flex justify-around items-center mb-6">
+          <div className="text-center">
+            <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest mb-1">Score</p>
+            <p className="text-4xl font-black text-white">{score}/{total}</p>
           </div>
-          <div className="text-2xl font-black text-slate-600 px-4">VS</div>
-          <div className="text-right">
-            <p className="text-xs text-slate-500 uppercase font-bold tracking-widest mb-1">
-              Opponent
-            </p>
-            <p className="text-2xl font-mono font-bold text-white">{opponentScore}</p>
+          
+          <div className="w-px h-12 bg-zinc-700"></div>
+          
+          <div className="text-center">
+            <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest mb-1">Avg Time</p>
+            <div className="flex items-center gap-1 justify-center">
+              <Clock className="w-5 h-5 text-zinc-400" />
+              <p className="text-2xl font-black text-white">{avgTime}s</p>
+            </div>
           </div>
         </div>
-        
-        {/* On-chain context */}
-        <a 
-          href="https://alfajores.celoscan.io/" 
-          target="_blank" 
-          rel="noreferrer"
-          className="flex items-center justify-center gap-2 text-sm text-cyan-400 hover:text-cyan-300 font-semibold"
-        >
-          View Payout Tx on Celo Explorer
-          <ExternalLink className="w-4 h-4" />
-        </a>
+
+        <div className="grid grid-cols-3 gap-2 text-center">
+          {[1, 2, 3].map((n) => (
+            <div 
+              key={n} 
+              className={`p-3 rounded-xl ${
+                n <= score 
+                  ? "bg-emerald-500/20 border border-emerald-500/30" 
+                  : "bg-zinc-800/50 border border-zinc-700"
+              }`}
+            >
+              <span className={`text-lg font-bold ${n <= score ? "text-emerald-400" : "text-zinc-600"}`}>
+                {n <= score ? "✓" : "○"}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <button 
-        onClick={() => router.push("/")}
-        className="w-full mt-auto py-4 rounded-2xl bg-slate-800 hover:bg-slate-700 font-bold text-white transition-all active:scale-[0.98] flex items-center justify-center gap-2 border border-slate-700"
-      >
-        <ArrowLeft className="w-5 h-5" />
-        Back to Lobby
-      </button>
+      {/* Actions */}
+      <div className="space-y-3">
+        <button 
+          onClick={() => router.push("/")}
+          className="w-full py-4 rounded-2xl bg-[#35D07F] hover:bg-[#35D07F]/90 text-black font-extrabold transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+        >
+          <ArrowRight className="w-5 h-5" />
+          Play Again
+        </button>
+        
+        <Link 
+          href="/leaderboard"
+          className="w-full py-4 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2 border border-zinc-700"
+        >
+          <Trophy className="w-5 h-5 text-yellow-400" />
+          View Leaderboard
+        </Link>
+      </div>
 
     </div>
   );

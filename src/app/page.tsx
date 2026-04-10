@@ -2,172 +2,143 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
-import { keccak256, stringToHex, parseUnits, formatUnits } from "viem";
+import { useAccount, useWriteContract, useReadContract } from "wagmi";
+import { parseUnits, formatUnits } from "viem";
 import WalletConnect from "@/components/WalletConnect";
-import { getSocket } from "@/lib/socket";
-import { TRIVIA_STAKE_ADDRESS, CUSD_ADDRESS, TRIVIA_STAKE_ABI, ERC20_ABI } from "@/lib/contract";
-import { Swords, Users, Loader2, Smile, Flame, Trophy, Bot, Play, Sparkles } from "lucide-react";
+import { CUSD_ADDRESS, TRIVIA_STAKE_ADDRESS, ERC20_ABI } from "@/lib/contract";
+import { Swords, Loader2, Flame, Trophy, Play, Sparkles, AlertTriangle, Zap, Trophy as SportIcon, Cpu, Newspaper, Film } from "lucide-react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUserStore } from "@/lib/store";
 import Link from "next/link";
 
+const STAKE_AMOUNT = "0.05";
+const DAILY_STAKE_AMOUNT = "0.01";
+const STAKE_AMOUNT_WEI = parseUnits(STAKE_AMOUNT, 18);
+const DAILY_STAKE_WEI = parseUnits(DAILY_STAKE_AMOUNT, 18);
+
+const CATEGORIES = [
+  { id: "sports", name: "Sports", icon: SportIcon, color: "text-green-400", bg: "bg-green-500/20" },
+  { id: "tech", name: "Tech", icon: Cpu, color: "text-blue-400", bg: "bg-blue-500/20" },
+  { id: "general", name: "General", icon: Newspaper, color: "text-yellow-400", bg: "bg-yellow-500/20" },
+  { id: "pop", name: "Pop Culture", icon: Film, color: "text-fuchsia-400", bg: "bg-fuchsia-500/20" },
+];
+
 export default function Home() {
   const { address, isConnected } = useAccount();
   const router = useRouter();
-  const { xp, level, winStreak } = useUserStore();
+  const { xp, level, winStreak, lastDailyChallenge, completeDailyChallenge } = useUserStore();
 
-  // Fetch cUSD Balance
   const { data: balanceData, isLoading: isBalanceLoading } = useReadContract({
     address: CUSD_ADDRESS as `0x${string}`,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
     args: [address as `0x${string}`],
-    query: {
-      enabled: !!address,
-    }
+    query: { enabled: !!address }
   });
 
   const displayBalance = balanceData ? parseFloat(formatUnits(balanceData as bigint, 18)).toFixed(2) : "0.00";
   
-  // State
-  const [roomCode, setRoomCode] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
-  const [isJoining, setIsJoining] = useState(false);
-  const [pendingRoomId, setPendingRoomId] = useState<string | null>(null);
-  const [statusText, setStatusText] = useState("");
   const [showSplash, setShowSplash] = useState(true);
+  const [showStakeModal, setShowStakeModal] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [isStaking, setIsStaking] = useState(false);
+  const [selectedMode, setSelectedMode] = useState<"normal" | "daily">("normal");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  // Splash Screen Timer
+  const { writeContractAsync: writeERC20 } = useWriteContract();
+
+  const today = new Date().toISOString().split('T')[0];
+  const dailyCompleted = lastDailyChallenge === today;
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowSplash(false);
-    }, 2800);
+    const timer = setTimeout(() => setShowSplash(false), 2800);
     return () => clearTimeout(timer);
   }, []);
 
-  // Blockchain Hooks
-  const { writeContractAsync: writeERC20 } = useWriteContract();
-  const { writeContractAsync: writeTriviaStake } = useWriteContract();
-
-  // Socket setup
-  useEffect(() => {
-    const socket = getSocket();
-    if (!socket.connected) socket.connect();
-
-    socket.on('room_created', async ({ roomId }) => {
-      setPendingRoomId(roomId);
-      await executeCreateStakeTransaction(roomId);
-    });
-
-    socket.on('player_joined', ({ roomId }) => {
-      // Both are ready!
-      router.push(`/game?room=${roomId}&host=false`);
-    });
-
-    socket.on('error', (err) => {
-      alert(err.message);
-      setIsJoining(false);
-    });
-
-    return () => {
-      socket.off('room_created');
-      socket.off('player_joined');
-      socket.off('error');
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const executeCreateStakeTransaction = async (roomId: string) => {
-    try {
-      setStatusText("Approving cUSD...");
-      
-      // 1. Approve cUSD
-      const approveAmount = parseUnits("0.05", 18);
-      const approveTx = await writeERC20({
-        address: CUSD_ADDRESS as `0x${string}`,
-        abi: ERC20_ABI,
-        functionName: 'approve',
-        args: [TRIVIA_STAKE_ADDRESS as `0x${string}`, approveAmount],
-      });
-      
-      setStatusText("Creating Match on-chain...");
-      
-      // 2. Create Match
-      const matchIdBytes = keccak256(stringToHex(roomId));
-      await writeTriviaStake({
-        address: TRIVIA_STAKE_ADDRESS as `0x${string}`,
-        abi: TRIVIA_STAKE_ABI,
-        functionName: 'createMatch',
-        args: [matchIdBytes],
-      });
-
-      // Navigate to game lobby as host
-      router.push(`/game?room=${roomId}&host=true`);
-
-    } catch (err) {
-      console.error(err);
-      alert("Transaction failed. Make sure you have enough cUSD and CELO for gas.");
-      setIsCreating(false);
-      setPendingRoomId(null);
-    }
-  };
-
-  const handleCreateMatch = () => {
+  const handleStakeAndPlay = (mode: "normal" | "daily" = "normal") => {
     if (!isConnected || !address) return;
     
-    // MiniPay Deep Link Integration
-    // If running inside MiniPay in-app browser, we should redirect to open the app properly
-    // or ensure the context is handled correctly.
-    // Note: In typical MiniPay DApps, the user is already "inside" MiniPay.
-    // This check is for deep linking scenarios if we were linking FROM a website TO MiniPay.
-    // Since this IS the DApp running in MiniPay, we mostly rely on the Injected Connector.
-    // However, we can ensure `window.ethereum` is treated correctly.
+    const balance = parseFloat(displayBalance);
+    const required = mode === "daily" ? 0.01 : 0.05;
     
-    if (typeof window !== 'undefined' && (window as any).ethereum?.isMiniPay) {
-      console.log("Detected MiniPay environment");
+    if (balance < required) {
+      alert(`Insufficient cUSD balance. Please get some from the faucet.`);
+      return;
     }
 
-    setIsCreating(true);
-    setStatusText("Generating room...");
-    getSocket().emit('create_room', { walletAddress: address });
+    if (mode === "daily" && dailyCompleted) {
+      alert("Daily challenge already completed today!");
+      return;
+    }
+
+    setSelectedMode(mode);
+    setShowStakeModal(true);
   };
 
-  const handleJoinMatch = async () => {
-    if (!isConnected || !address || !roomCode || roomCode.length !== 6) return;
-    setIsJoining(true);
+  const confirmStake = async () => {
+    if (!address) return;
     
-    try {
+    // Go to category selection
+    setShowStakeModal(false);
+    setShowCategoryModal(true);
+  };
+
+  const startGame = async () => {
+    if (!selectedCategory) return;
+
+    if (selectedMode === "normal") {
+      setIsStaking(true);
       setStatusText("Approving cUSD...");
-      
-      const approveAmount = parseUnits("0.05", 18);
-      await writeERC20({
-        address: CUSD_ADDRESS as `0x${string}`,
-        abi: ERC20_ABI,
-        functionName: 'approve',
-        args: [TRIVIA_STAKE_ADDRESS as `0x${string}`, approveAmount],
-      });
-      
-      setStatusText("Joining Match on-chain...");
-      
-      const matchIdBytes = keccak256(stringToHex(roomCode.toUpperCase()));
-      await writeTriviaStake({
-        address: TRIVIA_STAKE_ADDRESS as `0x${string}`,
-        abi: TRIVIA_STAKE_ABI,
-        functionName: 'joinMatch',
-        args: [matchIdBytes],
-      });
 
-      // Alert backend to join room and start game
-      getSocket().emit('join_room', { roomId: roomCode.toUpperCase(), walletAddress: address });
+      try {
+        await writeERC20({
+          address: CUSD_ADDRESS as `0x${string}`,
+          abi: ERC20_ABI,
+          functionName: 'approve',
+          args: [TRIVIA_STAKE_ADDRESS as `0x${string}`, STAKE_AMOUNT_WEI],
+        });
 
-    } catch (err) {
-      console.error(err);
-      alert("Transaction failed or match is full/not exist.");
-      setIsJoining(false);
+        setStatusText("Starting game...");
+        router.push(`/game?category=${selectedCategory}`);
+      } catch (err) {
+        console.error(err);
+        alert("Transaction failed. Make sure you have enough cUSD and CELO for gas.");
+        setIsStaking(false);
+        setShowCategoryModal(false);
+      }
+    } else {
+      // Daily challenge
+      const allowed = completeDailyChallenge();
+      if (!allowed) {
+        alert("Daily challenge already completed today!");
+        setShowCategoryModal(false);
+        return;
+      }
+
+      setIsStaking(true);
+      setStatusText("Approving cUSD...");
+
+      try {
+        await writeERC20({
+          address: CUSD_ADDRESS as `0x${string}`,
+          abi: ERC20_ABI,
+          functionName: 'approve',
+          args: [TRIVIA_STAKE_ADDRESS as `0x${string}`, DAILY_STAKE_WEI],
+        });
+
+        setStatusText("Starting game...");
+        router.push(`/game?category=${selectedCategory}&mode=daily`);
+      } catch (err) {
+        console.error(err);
+        alert("Transaction failed. Make sure you have enough cUSD and CELO for gas.");
+        setIsStaking(false);
+        setShowCategoryModal(false);
+      }
     }
   };
+
+  const [statusText, setStatusText] = useState("");
 
   return (
     <>
@@ -180,21 +151,7 @@ export default function Home() {
             transition={{ duration: 0.6, ease: "easeInOut" }}
             className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-950 px-6"
           >
-            <motion.div
-              initial={{ scale: 0.5, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.8, type: "spring" }}
-            >
-              <div className="w-40 h-40 rounded-full flex items-center justify-center overflow-hidden bg-black/40 backdrop-blur-sm border border-white/5 shadow-[0_0_50px_rgba(52,211,153,0.15)] mb-8">
-                <Image
-                  src="/logo_v2.png"
-                  alt="BrainStake Logo"
-                  width={160}
-                  height={160}
-                  className="mix-blend-screen scale-110"
-                />
-              </div>
-            </motion.div>
+            
             <motion.h1
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -214,6 +171,117 @@ export default function Home() {
         )}
       </AnimatePresence>
 
+      {/* Stake Confirmation Modal */}
+      <AnimatePresence>
+        {showStakeModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-zinc-900 border border-white/10 p-6 rounded-2xl w-full max-w-sm shadow-2xl"
+            >
+              <div className="flex items-center gap-3 mb-4 text-amber-400">
+                <AlertTriangle className="w-6 h-6" />
+                <h3 className="text-xl font-bold text-white">Confirm Stake</h3>
+              </div>
+              
+              <p className="text-zinc-400 mb-6">
+                You are about to stake <span className="text-white font-bold">{selectedMode === "daily" ? DAILY_STAKE_AMOUNT : STAKE_AMOUNT} cUSD</span> to play this round.
+              </p>
+
+              <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl mb-6">
+                <p className="text-red-400 text-sm">
+                  Warning: This stake is non-refundable.
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowStakeModal(false)}
+                  disabled={isStaking}
+                  className="flex-1 py-3 rounded-xl bg-zinc-800 text-white font-bold hover:bg-zinc-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmStake}
+                  disabled={isStaking}
+                  className="flex-1 py-3 rounded-xl bg-[#35D07F] text-black font-bold hover:bg-[#35D07F]/90 transition-colors flex items-center justify-center"
+                >
+                  {isStaking ? <Loader2 className="w-5 h-5 animate-spin" /> : "Next"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Category Selection Modal */}
+      <AnimatePresence>
+        {showCategoryModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-zinc-900 border border-white/10 p-6 rounded-2xl w-full max-w-sm shadow-2xl"
+            >
+              <h3 className="text-xl font-bold text-white mb-4">Select Category</h3>
+              <p className="text-zinc-400 text-sm mb-6">Choose a category for this round's questions.</p>
+
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                {CATEGORIES.map((cat) => {
+                  const Icon = cat.icon;
+                  const isSelected = selectedCategory === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all ${
+                        isSelected 
+                          ? `border-[#35D07F] bg-[#35D07F]/10` 
+                          : "border-zinc-700 hover:border-zinc-500 bg-zinc-800"
+                      }`}
+                    >
+                      <Icon className={`w-6 h-6 ${cat.color}`} />
+                      <span className={`text-sm font-bold ${isSelected ? "text-white" : "text-zinc-400"}`}>
+                        {cat.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCategoryModal(false)}
+                  disabled={isStaking}
+                  className="flex-1 py-3 rounded-xl bg-zinc-800 text-white font-bold hover:bg-zinc-700 transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={startGame}
+                  disabled={isStaking || !selectedCategory}
+                  className="flex-1 py-3 rounded-xl bg-[#35D07F] text-black font-bold hover:bg-[#35D07F]/90 transition-colors flex items-center justify-center disabled:opacity-50"
+                >
+                  {isStaking ? <Loader2 className="w-5 h-5 animate-spin" /> : "Start Game"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {!showSplash && (
         <motion.main 
           initial={{ opacity: 0 }}
@@ -221,7 +289,7 @@ export default function Home() {
           transition={{ duration: 0.8 }}
           className="flex-1 overflow-y-auto px-5 py-6 pb-28 scrollbar-hide flex flex-col"
         >
-          {/* Top Bar with XP and Streak */}
+          {/* Top Bar */}
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-2 bg-zinc-900/80 px-3 py-1.5 rounded-full border border-white/5">
               <div className="bg-[#35D07F]/20 p-1 rounded-full">
@@ -248,10 +316,7 @@ export default function Home() {
                 animate={{ scale: 1, opacity: 1 }}
                 className="relative z-10"
               >
-                <div className="w-28 h-28 mx-auto mb-8 relative flex items-center justify-center rounded-full overflow-hidden bg-black/20">
-                   <div className="absolute inset-0 bg-emerald-500/10 blur-2xl rounded-full animate-pulse" />
-                   <Image src="/logo_v2.png" alt="BrainStake Logo" width={120} height={120} className="relative z-10 mix-blend-screen" />
-                </div>
+                
                 <h2 className="text-3xl font-black text-white mb-3 tracking-tight">Level Up Your Knowledge</h2>
                 <p className="text-sm text-zinc-400 mb-8 max-w-[240px] mx-auto font-medium leading-relaxed">
                   Connect your MiniPay wallet to compete, stake, and earn real rewards.
@@ -260,89 +325,85 @@ export default function Home() {
               </motion.div>
             </div>
           ) : (
-            <div className="mb-8">
+            <div className="mb-8 space-y-4">
+              {/* Daily Challenge Card */}
+              <div className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 px-5 py-4 rounded-[24px] border border-purple-500/30 relative overflow-hidden">
+                <div className="absolute -top-8 -right-8 w-24 h-24 bg-purple-500/20 blur-3xl rounded-full" />
+                <div className="flex items-center justify-between relative z-10">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-purple-500/20 p-2 rounded-xl">
+                      <Zap className="w-5 h-5 text-purple-400" />
+                    </div>
+                    <div>
+                      <p className="text-white font-bold text-sm">Daily Challenge</p>
+                      <p className="text-purple-300 text-xs">Stake only 0.01 cUSD!</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleStakeAndPlay("daily")}
+                    disabled={dailyCompleted}
+                    className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+                      dailyCompleted 
+                        ? "bg-zinc-700 text-zinc-500 cursor-not-allowed" 
+                        : "bg-purple-500 hover:bg-purple-400 text-white"
+                    }`}
+                  >
+                    {dailyCompleted ? "Done" : "Play"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Main Stake Card */}
               <div className="bg-[#35D07F]/10 px-5 py-6 rounded-[24px] border border-[#35D07F]/20 relative overflow-hidden flex flex-col items-center">
                 <div className="absolute -top-12 -right-12 w-32 h-32 bg-[#35D07F] opacity-10 blur-3xl rounded-full" />
                 <div className="absolute -bottom-8 -left-8 w-24 h-24 bg-[#6C5DD3] opacity-20 blur-2xl rounded-full" />
                 
-                <p className="text-xs font-bold text-[#35D07F] uppercase tracking-widest mb-1 z-10">Staking Balance</p>
+                <p className="text-xs font-bold text-[#35D07F] uppercase tracking-widest mb-1 z-10">Your Balance</p>
                 <div className="text-4xl font-black text-white z-10 flex items-center gap-2">
                   {isBalanceLoading ? (
-                    <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
+                    <span className="text-zinc-500">...</span>
                   ) : (
                     <>
                       {displayBalance} <span className="text-lg text-zinc-400">cUSD</span>
                     </>
                   )}
                 </div>
-                <div className="mt-6 w-full flex gap-3 z-10">
+
+                <div className="mt-6 w-full z-10">
                   <button
-                    onClick={handleCreateMatch}
-                    disabled={isCreating}
-                    className="flex-1 bg-[#35D07F] hover:bg-[#35D07F]/90 text-black font-extrabold py-3.5 rounded-2xl shadow-[0_4px_16px_rgba(53,208,127,0.3)] transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+                    onClick={() => handleStakeAndPlay("normal")}
+                    className="w-full bg-[#35D07F] hover:bg-[#35D07F]/90 text-black font-extrabold py-4 rounded-2xl shadow-[0_4px_16px_rgba(53,208,127,0.3)] transition-all active:scale-95 flex items-center justify-center gap-2"
                   >
-                    {isCreating ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Swords className="w-5 h-5" /> Host Match</>}
+                    <Swords className="w-5 h-5" /> Stake & Play
                   </button>
+                  <p className="text-center text-zinc-500 text-xs mt-2">Stake 0.05 cUSD per round</p>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Quick Join / Room Code */}
-          {isConnected && (
-            <div className="flex gap-2 mb-8 bg-zinc-900/40 p-2 rounded-2xl border border-white/5">
-               <input 
-                 type="text" 
-                 placeholder="Enter Room Code" 
-                 value={roomCode}
-                 onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                 disabled={isJoining || isCreating}
-                 maxLength={6}
-                 className="flex-1 bg-transparent border-none px-4 text-white font-bold placeholder-zinc-600 focus:outline-none uppercase tracking-widest text-sm"
-               />
-               <button 
-                 onClick={handleJoinMatch}
-                 disabled={isJoining || isCreating || roomCode.length !== 6}
-                 className="px-6 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold transition-all active:scale-95 disabled:opacity-50"
-               >
-                 {isJoining ? <Loader2 className="animate-spin w-4 h-4" /> : "Join"}
-               </button>
-            </div>
-          )}
-
-          {/* 3 Main Action Buttons */}
-          <div className="grid grid-cols-2 gap-3 mb-8">
-            <Link href="/train" className="col-span-2 group relative overflow-hidden bg-zinc-900/80 p-4 rounded-2xl border border-white/5 hover:border-white/10 transition-colors flex items-center gap-4">
-              <div className="bg-indigo-500/20 p-3 rounded-xl group-hover:scale-110 transition-transform">
-                <Play className="w-6 h-6 text-indigo-400" />
+          {/* Bottom Navigation */}
+          <div className="grid grid-cols-2 gap-4 mt-2">
+            <Link href="/leaderboard" className="group relative overflow-hidden bg-gradient-to-br from-zinc-900/80 to-zinc-900/40 p-5 rounded-2xl border border-white/5 hover:border-yellow-500/30 hover:bg-yellow-500/10 transition-all flex flex-col items-center justify-center gap-2">
+              <div className="bg-yellow-500/20 p-3 rounded-xl group-hover:scale-110 transition-transform">
+                <Trophy className="w-6 h-6 text-yellow-400" />
               </div>
-              <div className="flex-1">
-                <h3 className="text-white font-bold text-sm">Train Free</h3>
-                <p className="text-zinc-400 text-xs mt-0.5">Earn XP without staking</p>
+              <div className="text-center">
+                <h3 className="text-white font-bold text-sm">Leaderboard</h3>
+                <p className="text-zinc-500 text-[10px] mt-0.5">Top players</p>
               </div>
             </Link>
 
-            <Link href="/bot" className="group relative overflow-hidden bg-zinc-900/80 p-4 rounded-2xl border border-white/5 hover:border-white/10 transition-colors flex flex-col items-center justify-center text-center gap-2">
-              <div className="bg-orange-500/20 p-2.5 rounded-xl group-hover:scale-110 transition-transform">
-                <Bot className="w-5 h-5 text-orange-400" />
+            <Link href="/profile" className="group relative overflow-hidden bg-gradient-to-br from-zinc-900/80 to-zinc-900/40 p-5 rounded-2xl border border-white/5 hover:border-blue-500/30 hover:bg-blue-500/10 transition-all flex flex-col items-center justify-center gap-2">
+              <div className="bg-blue-500/20 p-3 rounded-xl group-hover:scale-110 transition-transform">
+                <Sparkles className="w-6 h-6 text-blue-400" />
               </div>
-              <div>
-                <h3 className="text-white font-bold text-sm">Play Bot</h3>
-                <p className="text-zinc-500 text-[10px] mt-0.5">Solo practice</p>
-              </div>
-            </Link>
-
-            <Link href="/leaderboard" className="group relative overflow-hidden bg-zinc-900/80 p-4 rounded-2xl border border-white/5 hover:border-white/10 transition-colors flex flex-col items-center justify-center text-center gap-2">
-              <div className="bg-yellow-500/20 p-2.5 rounded-xl group-hover:scale-110 transition-transform">
-                <Trophy className="w-5 h-5 text-yellow-400" />
-              </div>
-              <div>
-                <h3 className="text-white font-bold text-sm">Rankings</h3>
-                <p className="text-zinc-500 text-[10px] mt-0.5">Top earners</p>
+              <div className="text-center">
+                <h3 className="text-white font-bold text-sm">Profile</h3>
+                <p className="text-zinc-500 text-[10px] mt-0.5">Stats & history</p>
               </div>
             </Link>
           </div>
-          
         </motion.main>
       )}
     </>

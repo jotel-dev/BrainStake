@@ -17,12 +17,15 @@ export interface UserState {
   maxWinStreak: number;
   gamesPlayed: number;
   wins: number;
+  bestScore: number;
+  lastDailyChallenge: string | null;
   badges: string[];
   matchHistory: MatchRecord[];
   addXP: (amount: number) => void;
-  recordMatch: (match: Omit<MatchRecord, 'id' | 'date'>) => void;
+  recordMatch: (match: Omit<MatchRecord, 'id' | 'date'>, score: number) => void;
   resetStreak: () => void;
   awardBadge: (badgeId: string) => void;
+  completeDailyChallenge: () => boolean;
 }
 
 const XP_PER_LEVEL = 1000;
@@ -36,6 +39,8 @@ export const useUserStore = create<UserState>()(
       maxWinStreak: 0,
       gamesPlayed: 0,
       wins: 0,
+      bestScore: 0,
+      lastDailyChallenge: null,
       badges: [],
       matchHistory: [],
 
@@ -46,7 +51,7 @@ export const useUserStore = create<UserState>()(
           return { xp: newXp, level: Math.max(state.level, newLevel) };
         }),
 
-      recordMatch: (matchData) =>
+      recordMatch: (matchData, score) =>
         set((state) => {
           const isWin = matchData.result === 'win';
           const newWinStreak = isWin ? state.winStreak + 1 : 0;
@@ -64,13 +69,27 @@ export const useUserStore = create<UserState>()(
             maxWinStreak: Math.max(state.maxWinStreak, newWinStreak),
             gamesPlayed: newGamesPlayed,
             wins: newWins,
-            matchHistory: [newMatch, ...state.matchHistory].slice(0, 50), // keep last 50
+            bestScore: Math.max(state.bestScore, score),
+            matchHistory: [newMatch, ...state.matchHistory].slice(0, 50),
             ...((isWin || matchData.earnedXP > 0) && {
               xp: state.xp + matchData.earnedXP,
               level: Math.floor((state.xp + matchData.earnedXP) / XP_PER_LEVEL) + 1,
             }),
           };
         }),
+
+      completeDailyChallenge: () => {
+        const today = new Date().toISOString().split('T')[0];
+        let allowed = false;
+        set((state) => {
+          if (state.lastDailyChallenge !== today) {
+            allowed = true;
+            return { lastDailyChallenge: today };
+          }
+          return state;
+        });
+        return allowed;
+      },
 
       resetStreak: () => set({ winStreak: 0 }),
       

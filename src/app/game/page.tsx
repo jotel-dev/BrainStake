@@ -1,193 +1,176 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import { getSocket } from "@/lib/socket";
+import { useEffect, useState, Suspense, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount } from "wagmi";
 import { motion, AnimatePresence } from "framer-motion";
-import { BrainCircuit, Clock, Trophy, Loader2 } from "lucide-react";
+import { BrainCircuit, Clock, Trophy, Loader2, CheckCircle, XCircle, ArrowRight } from "lucide-react";
 import questionsData from "@/data/questions.json";
 
+const TOTAL_QUESTIONS = 3;
+const QUESTION_TIME = 7;
+
+type Question = {
+  id: number;
+  question: string;
+  options: string[];
+  category: string;
+  answer: string;
+};
+
 function GameComponent() {
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const urlRoomId = searchParams.get("room");
-  const isHost = searchParams.get("host") === "true";
-  const mode = searchParams.get("mode");
+  const searchParams = useSearchParams();
   const { address } = useAccount();
 
-  const [currentRoomId, setCurrentRoomId] = useState(urlRoomId || "");
-  const [gameState, setGameState] = useState<"waiting" | "playing" | "finished">("waiting");
-  const [question, setQuestion] = useState<{id: number, question: string, options: string[], category: string} | null>(null);
+  const categoryParam = searchParams.get("category");
+  const modeParam = searchParams.get("mode");
+
+  const [gameState, setGameState] = useState<"ready" | "playing" | "finished">("ready");
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [totalQuestions, setTotalQuestions] = useState(5);
-  const [timeLeft, setTimeLeft] = useState(15);
-  const [myScore, setMyScore] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(QUESTION_TIME);
+  const [score, setScore] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [botScore, setBotScore] = useState(0);
+  const [answerTimes, setAnswerTimes] = useState<number[]>([]);
+  const [startTime, setStartTime] = useState<number>(0);
+  
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const questionStartRef = useRef<number>(0);
 
   useEffect(() => {
-    // Client-side Solo Engine Logic
-    const startClientSideGame = () => {
-      const roomId = `SOLO_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-      setCurrentRoomId(roomId);
-      
-      // Select 5 random questions
-      const shuffled = [...questionsData].sort(() => 0.5 - Math.random());
-      const selectedQuestions = shuffled.slice(0, 5);
-      
-      let currentIdx = 0;
-      
-      const showNextQuestion = (idx: number) => {
-        if (idx >= 5) {
-          // Game Over
-          const finalScores = { [address || "guest"]: myScore, "BOT_PLAYER": botScore };
-          const winner = myScore > botScore ? (address || "guest") : (botScore > myScore ? "BOT_PLAYER" : "tie");
-          
-          setTimeout(() => {
-            const scoresParam = encodeURIComponent(JSON.stringify(finalScores));
-            router.push(`/result?winner=${winner}&scores=${scoresParam}`);
-          }, 1000);
-          return;
-        }
+    let filtered = questionsData;
+    
+    // Filter by category if selected
+    if (categoryParam) {
+      filtered = questionsData.filter(q => 
+        q.category.toLowerCase() === categoryParam.toLowerCase()
+      );
+    }
+    
+    // If not enough questions in category, mix with others
+    if (filtered.length < TOTAL_QUESTIONS) {
+      filtered = [...filtered, ...questionsData].slice(0, TOTAL_QUESTIONS * 2);
+    }
+    
+    const shuffled = [...filtered].sort(() => 0.5 - Math.random());
+    const selected = shuffled.slice(0, TOTAL_QUESTIONS).map(q => ({
+      id: q.id,
+      question: q.question,
+      options: q.options,
+      category: q.category,
+      answer: q.answer
+    }));
+    setQuestions(selected);
+  }, [categoryParam]);
 
-        setGameState("playing");
-        const q = selectedQuestions[idx];
-        setQuestion({
-          id: q.id,
-          category: q.category,
-          question: q.question,
-          options: q.options
-        });
-        setCurrentIndex(idx + 1);
-        setSelectedAnswer(null);
-        setTimeLeft(15);
-        
-        // Timer setup
-        const timer = setInterval(() => {
-          setTimeLeft(prev => {
-            if (prev <= 1) {
-              clearInterval(timer);
-              // Move to next question after a brief delay
-              setTimeout(() => showNextQuestion(idx + 1), 2000);
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
+  const startGame = () => {
+    if (questions.length === 0) return;
+    setGameState("playing");
+    setStartTime(Date.now());
+    showQuestion(0);
+  };
 
-        // Bot simulation
-        if (mode === "solo") {
-          const botDelay = 3000 + Math.random() * 7000; // 3-10 seconds
-          setTimeout(() => {
-            if (Math.random() > 0.5) { // 50% chance for bot to be right
-               setBotScore(s => s + 1);
-            }
-          }, botDelay);
-        }
-      };
-
-      // Initial start delay
-      setTimeout(() => showNextQuestion(0), 1500);
-    };
-
-    // Redirect if no room and not solo/train
-    if (!urlRoomId && mode !== "solo" && mode !== "train" && !currentRoomId) {
-      router.push("/");
+  const showQuestion = (idx: number) => {
+    if (idx >= TOTAL_QUESTIONS) {
+      finishGame();
       return;
     }
 
-    // Start solo game immediately
-    if (mode === "solo" || mode === "train") {
-      startClientSideGame();
-      return;
-    }
+    setCurrentIndex(idx + 1);
+    setSelectedAnswer(null);
+    setTimeLeft(QUESTION_TIME);
+    questionStartRef.current = Date.now();
 
-    // Multiplayer logic remains unchanged (Socket.io)
-    const socket = getSocket();
-    if (!socket.connected) socket.connect();
+    if (timerRef.current) clearInterval(timerRef.current);
+    
+    timerRef.current = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current!);
+          handleTimeout();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
 
-    socket.on('room_created', (data) => {
-      if (mode === "solo" || mode === "train") {
-        setCurrentRoomId(data.roomId);
-      }
-    });
-
-    socket.on('player_joined', () => {
-      if (isHost && urlRoomId) {
-        socket.emit('start_game', { roomId: urlRoomId });
-      }
-    });
-
-    socket.on('next_question', (data) => {
-      setGameState("playing");
-      setQuestion(data.question);
-      setCurrentIndex(data.index);
-      setTotalQuestions(data.total);
-      setSelectedAnswer(null);
-    });
-
-    socket.on('timer_update', (data) => {
-      setTimeLeft(data.timeLeft);
-    });
-
-    socket.on('game_over', (data) => {
-      setGameState("finished");
-      const scoresParam = encodeURIComponent(JSON.stringify(data.scores));
-      router.push(`/result?winner=${data.winner}&scores=${scoresParam}`);
-    });
-
-    return () => {
-      socket.off('room_created');
-      socket.off('player_joined');
-      socket.off('next_question');
-      socket.off('timer_update');
-      socket.off('game_over');
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlRoomId, address, isHost, mode]);
-
-  const handleStart = () => {
-    getSocket().emit('start_game', { roomId: currentRoomId });
+  const handleTimeout = () => {
+    setSelectedAnswer("timeout");
+    const timeTaken = QUESTION_TIME;
+    setAnswerTimes(prev => [...prev, timeTaken]);
+    
+    setTimeout(() => {
+      showQuestion(currentIndex);
+    }, 1500);
   };
 
   const submitAnswer = (answer: string) => {
-    if (selectedAnswer) return; // already answered
-    setSelectedAnswer(answer);
+    if (selectedAnswer) return;
     
-    if (mode === "solo" || mode === "train") {
-      const q = questionsData.find(q => q.id === question?.id);
-      if (q && q.answer === answer) {
-        setMyScore(s => s + 1);
-      }
-      // In solo mode, we just wait for the timer to finish or we could skip ahead.
-      // For simplicity, let's just let the timer run or we can trigger next manually.
-    } else {
-      getSocket().emit('submit_answer', { roomId: currentRoomId, walletAddress: address || "guest", answer });
+    if (timerRef.current) clearInterval(timerRef.current);
+    
+    const timeTaken = QUESTION_TIME - timeLeft;
+    setAnswerTimes(prev => [...prev, timeTaken]);
+    setSelectedAnswer(answer);
+
+    const currentQ = questions[currentIndex - 1];
+    if (currentQ && currentQ.answer === answer) {
+      setScore(s => s + 1);
     }
+
+    setTimeout(() => {
+      showQuestion(currentIndex);
+    }, 1000);
   };
 
-  if (gameState === "waiting") {
+  const finishGame = () => {
+    setGameState("finished");
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    const avgTime = answerTimes.length > 0 
+      ? (answerTimes.reduce((a, b) => a + b, 0) / answerTimes.length).toFixed(1)
+      : "0.0";
+
+    const finalData = {
+      score,
+      total: TOTAL_QUESTIONS,
+      avgTime,
+      win: score >= 2
+    };
+
+    router.push(`/result?data=${encodeURIComponent(JSON.stringify(finalData))}`);
+  };
+
+  if (gameState === "ready") {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-        <LoaderComponent text={isHost ? "Waiting for Opponent..." : "Waiting for Host to start..."} />
-        {isHost && (
-          <button 
-            onClick={handleStart}
-            className="mt-8 px-8 py-3 bg-indigo-600 rounded-full font-bold text-white shadow-lg active:scale-95 transition-transform"
-          >
-            Force Start (If opponent is here)
-          </button>
-        )}
-        <p className="mt-6 text-2xl font-mono tracking-widest text-cyan-400 bg-slate-800 px-6 py-2 rounded-xl border border-slate-700">
-          {currentRoomId || "..."}
+        <div className="w-20 h-20 bg-[#35D07F]/20 rounded-full flex items-center justify-center mb-6">
+          <Trophy className="w-10 h-10 text-[#35D07F]" />
+        </div>
+        <h2 className="text-2xl font-black text-white mb-2">Ready to Play?</h2>
+        <p className="text-zinc-400 mb-8 max-w-[250px]">
+          Answer {TOTAL_QUESTIONS} questions in {QUESTION_TIME} seconds each. Score 2/3 to win!
         </p>
-        <p className="mt-2 text-sm text-slate-500">Share this code to join</p>
+        <button
+          onClick={startGame}
+          className="px-8 py-4 bg-[#35D07F] text-black font-extrabold rounded-2xl shadow-lg hover:scale-105 transition-transform flex items-center gap-2"
+        >
+          Start Round <ArrowRight className="w-5 h-5" />
+        </button>
       </div>
     );
   }
 
-  if (!question) return null;
+  const currentQ = questions[currentIndex - 1];
+  if (!currentQ) return <LoaderComponent text="Loading questions..." />;
+
+  const getTimerColor = () => {
+    if (timeLeft > 4) return "text-emerald-400";
+    if (timeLeft > 2) return "text-yellow-400";
+    return "text-red-500";
+  };
 
   return (
     <div className="flex flex-col h-full w-full">
@@ -195,39 +178,55 @@ function GameComponent() {
       <div className="flex justify-between items-center p-5 border-b border-slate-800 bg-slate-900/80 backdrop-blur-md">
         <div className="bg-slate-800 px-3 py-1 rounded-full text-xs font-bold text-cyan-400 flex items-center gap-1.5">
           <BrainCircuit className="w-3.5 h-3.5" />
-          {question.category}
+          {currentQ.category}
         </div>
         <div className="text-slate-400 text-sm font-semibold tracking-widest">
-          Q {currentIndex} <span className="text-slate-600">/ {totalQuestions}</span>
+          Q {currentIndex} <span className="text-slate-600">/ {TOTAL_QUESTIONS}</span>
         </div>
       </div>
 
       {/* Timer Bar */}
-      <div className="w-full h-1.5 bg-slate-800 relative overflow-hidden">
+      <div className="w-full h-2 bg-slate-800 relative overflow-hidden">
         <motion.div 
-          className="absolute left-0 top-0 bottom-0 bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]"
+          className={`absolute left-0 top-0 bottom-0 transition-colors duration-300 ${
+            timeLeft > 4 ? "bg-emerald-400" : timeLeft > 2 ? "bg-yellow-400" : "bg-red-500"
+          }`}
           initial={{ width: "100%" }}
-          animate={{ width: `${(timeLeft / 15) * 100}%` }}
+          animate={{ width: `${(timeLeft / QUESTION_TIME) * 100}%` }}
           transition={{ ease: "linear", duration: 1 }}
         />
       </div>
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto px-5 pt-8 pb-32 flex flex-col scrollbar-hide">
-        <div className="flex items-center justify-center gap-2 mb-6 text-emerald-400 font-mono text-xl font-bold">
-          <Clock className="w-5 h-5 animate-pulse" />
-          {timeLeft}s
+        <div className={`flex items-center justify-center gap-2 mb-6 font-mono text-3xl font-bold ${getTimerColor()}`}>
+          <Clock className="w-7 h-7" />
+          {timeLeft}
         </div>
 
         <h2 className="text-2xl md:text-3xl font-extrabold text-white leading-tight text-center mb-10 shadow-sm">
-          {question.question}
+          {currentQ.question}
         </h2>
 
         <div className="mt-auto space-y-3">
           <AnimatePresence>
-            {question.options.map((opt, idx) => {
+            {currentQ.options.map((opt, idx) => {
               const isSelected = selectedAnswer === opt;
+              const isCorrect = opt === currentQ.answer;
               const isLocked = selectedAnswer !== null;
+              const showResult = isLocked && isCorrect;
+
+              let btnClass = "bg-slate-800 border-2 border-slate-700 hover:border-slate-500 text-slate-200 hover:bg-slate-750";
+              
+              if (isSelected) {
+                if (isCorrect) {
+                  btnClass = "bg-emerald-600 border-2 border-emerald-400 text-white";
+                } else {
+                  btnClass = "bg-red-600 border-2 border-red-400 text-white";
+                }
+              } else if (isLocked && isCorrect) {
+                btnClass = "bg-emerald-600/50 border-2 border-emerald-400 text-white";
+              }
 
               return (
                 <motion.button
@@ -237,15 +236,10 @@ function GameComponent() {
                   transition={{ delay: idx * 0.1 }}
                   onClick={() => submitAnswer(opt)}
                   disabled={isLocked}
-                  className={`w-full p-4 rounded-2xl font-semibold text-lg transition-all active:scale-[0.98] 
-                    ${isSelected 
-                      ? "bg-indigo-600 border-2 border-indigo-400 text-white shadow-lg shadow-indigo-500/30" 
-                      : isLocked 
-                        ? "bg-slate-800/50 border-2 border-slate-800 text-slate-500 opacity-50"
-                        : "bg-slate-800 border-2 border-slate-700 hover:border-slate-500 text-slate-200 hover:bg-slate-750"
-                    }`}
+                  className={`w-full p-4 rounded-2xl font-semibold text-lg transition-all active:scale-[0.98] flex items-center justify-between ${btnClass}`}
                 >
-                  {opt}
+                  <span>{opt}</span>
+                  {isSelected && (isCorrect ? <CheckCircle className="w-5 h-5" /> : <XCircle className="w-5 h-5" />)}
                 </motion.button>
               );
             })}

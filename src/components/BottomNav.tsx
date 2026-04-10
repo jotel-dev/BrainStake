@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Dumbbell, PlayCircle, Trophy, User } from "lucide-react";
+import { Home, PlayCircle, Trophy, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { name: "Home", href: "/", icon: Home },
-  { name: "Train", href: "/train", icon: Dumbbell },
   { name: "Play", href: "/bot", icon: PlayCircle },
   { name: "Leaders", href: "/leaderboard", icon: Trophy },
   { name: "Profile", href: "/profile", icon: User },
@@ -16,8 +15,6 @@ const NAV_ITEMS = [
 
 export default function BottomNav() {
   const pathname = usePathname();
-
-  // Bottom nav is now explicitly visible on all pages, including the game view.
 
   return (
     <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[375px] z-50 bg-[#0b0b0f]/90 backdrop-blur-xl border-t border-slate-800/60 pb-safe">
