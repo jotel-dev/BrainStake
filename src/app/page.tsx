@@ -48,7 +48,7 @@ export default function Home() {
   });
 
   const displayBalance = balanceData ? parseFloat(formatUnits(balanceData as bigint, 18)).toFixed(2) : "0.00";
-  const displayCelo = celoBalance ? parseFloat(celoBalance.formatted).toFixed(2) : "0.00";
+  const displayCelo = celoBalance ? parseFloat(formatUnits(celoBalance.value, celoBalance.decimals)).toFixed(2) : "0.00";
   
   const [showSplash, setShowSplash] = useState(true);
   const [showStakeModal, setShowStakeModal] = useState(false);
