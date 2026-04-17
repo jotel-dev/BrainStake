@@ -42,9 +42,9 @@ function ResultComponent() {
     if (!win || isFreeMode || claimed || claiming) return;
     try {
       setClaiming(true);
-      const token = getCUSDAddress();
+      const token = getCUSDAddress() as `0x${string}`;
       const hash = await writeContractAsync({
-        address: TRIVIA_STAKE_ADDRESS,
+        address: TRIVIA_STAKE_ADDRESS as `0x${string}`,
         abi: TRIVIA_STAKE_ABI,
         functionName: "claimReward",
         args: [token],
