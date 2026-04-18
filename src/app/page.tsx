@@ -464,6 +464,9 @@ export default function Home() {
           </div>
         </motion.main>
       )}
+
+      {/* Copyright */}
+      <p className="text-center text-xs text-zinc-600 py-4">© 2026 BrainStake — Done by Joel</p>
     </>
   );
 }
