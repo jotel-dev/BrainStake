@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { User, Medal, Flame, ShieldCheck, Trophy, Copy, ArrowLeft, Wallet, Loader2 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { parseUnits, formatUnits } from "viem";
+import { formatUnits } from "viem";
 import { getCUSDAddress, TRIVIA_STAKE_ADDRESS, ERC20_ABI, TRIVIA_STAKE_ABI } from "@/lib/contract";
 
 export default function ProfilePage() {
@@ -15,55 +15,44 @@ export default function ProfilePage() {
   const chainId = useChainId();
   const { xp, level, winStreak, maxWinStreak, gamesPlayed, wins, bestScore, matchHistory } = useUserStore();
 
-  const [mounted, setMounted] = useState(false);
-  const [fundAmount, setFundAmount] = useState("1");
-  const [funding, setFunding] = useState(false);
+   const [mounted, setMounted] = useState(false);
+   const [funding, setFunding] = useState(false);
 
-  const currentCUSDAddress = getCUSDAddress(chainId);
+   const currentCUSDAddress = getCUSDAddress(chainId);
 
-  const { writeContractAsync } = useWriteContract();
+   const { writeContractAsync } = useWriteContract();
 
-  const { data: housePoolData } = useReadContract({
-    address: TRIVIA_STAKE_ADDRESS as `0x${string}`,
-    abi: TRIVIA_STAKE_ABI,
-    functionName: "housePool",
-    args: [currentCUSDAddress as `0x${string}`],
-    query: { enabled: !!address }
-  });
+   const { data: housePoolData } = useReadContract({
+     address: TRIVIA_STAKE_ADDRESS as `0x${string}`,
+     abi: TRIVIA_STAKE_ABI,
+     functionName: "housePool",
+     args: [currentCUSDAddress as `0x${string}`],
+     query: { enabled: !!address }
+   });
 
-  const housePoolBalance = housePoolData ? parseFloat(formatUnits(housePoolData as bigint, 18)) : 0;
+   const housePoolBalance = housePoolData ? parseFloat(formatUnits(housePoolData as bigint, 6)) : 0;
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+   useEffect(() => {
+     setMounted(true);
+   }, []);
 
-  const handleFundPool = async () => {
-    if (!address || funding) return;
-    try {
-      setFunding(true);
-      const amountWei = parseUnits(fundAmount, 18);
-      
-      await writeContractAsync({
-        address: currentCUSDAddress as `0x${string}`,
-        abi: ERC20_ABI,
-        functionName: "approve",
-        args: [TRIVIA_STAKE_ADDRESS as `0x${string}`, amountWei],
-      });
-
-      await writeContractAsync({
-        address: TRIVIA_STAKE_ADDRESS as `0x${string}`,
-        abi: TRIVIA_STAKE_ABI,
-        functionName: "fundHousePool",
-        args: [currentCUSDAddress as `0x${string}`, amountWei],
-      });
-
-      alert("Pool funded successfully!");
-    } catch (e) {
-      console.error("Fund pool failed", e);
-    } finally {
-      setFunding(false);
-    }
-  };
+   const handleFundPool = async () => {
+     if (!address || funding) return;
+     try {
+       setFunding(true);
+       await writeContractAsync({
+         address: TRIVIA_STAKE_ADDRESS as `0x${string}`,
+         abi: TRIVIA_STAKE_ABI,
+         functionName: "fundHousePool",
+         args: [currentCUSDAddress as `0x${string}`],
+       });
+       alert("Pool funded successfully!");
+     } catch (e) {
+       console.error("Fund pool failed", e);
+     } finally {
+       setFunding(false);
+     }
+   };
 
   const winRate = gamesPlayed > 0 ? Math.round((wins / gamesPlayed) * 100) : 0;
   
@@ -190,19 +179,12 @@ export default function ProfilePage() {
           </div>
           <p className="text-white text-lg font-bold mb-3">{housePoolBalance.toFixed(2)} cUSD</p>
           <div className="flex gap-2">
-            <input
-              type="number"
-              value={fundAmount}
-              onChange={(e) => setFundAmount(e.target.value)}
-              placeholder="Amount"
-              className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white text-sm font-bold"
-            />
             <button
               onClick={handleFundPool}
-              disabled={funding || parseFloat(fundAmount) <= 0}
+              disabled={funding}
               className="bg-amber-500 disabled:bg-zinc-700 text-black font-bold px-4 py-2 rounded-xl text-sm flex items-center gap-2"
             >
-              {funding ? <Loader2 className="w-4 h-4 animate-spin" /> : "Fund"}
+              {funding ? <Loader2 className="w-4 h-4 animate-spin" /> : "Fund All Rewards"}
             </button>
           </div>
         </div>

@@ -25,6 +25,7 @@ function GameComponent() {
 
   const categoryParam = searchParams.get("category");
   const modeParam = searchParams.get("mode");
+  const matchId = searchParams.get("matchId");
 
   const [gameState, setGameState] = useState<"ready" | "playing" | "finished">("ready");
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -180,7 +181,7 @@ function GameComponent() {
       saveScore();
     }
 
-    router.push(`/result?data=${encodeURIComponent(JSON.stringify(finalData))}&mode=${modeParam || 'normal'}`);
+    router.push(`/result?data=${encodeURIComponent(JSON.stringify(finalData))}&mode=${modeParam || 'normal'}&matchId=${matchId}`);
   };
 
   if (gameState === "ready") {

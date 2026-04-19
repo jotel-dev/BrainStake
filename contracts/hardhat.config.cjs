@@ -1,9 +1,7 @@
-require("@nomicfoundation/hardhat-toolbox");
 require("dotenv").config();
 
-/** @type import('hardhat/types').HardhatUserConfig */
 module.exports = {
-  solidity: "0.8.19",
+  solidity: "0.8.20",
   networks: {
     celoMainnet: {
       url: "https://forno.celo.org",
@@ -11,7 +9,7 @@ module.exports = {
       chainId: 42220,
     },
     celoAlfajores: {
-      url: "https://1rpc.io/celo/alfajores",
+      url: process.env.ALFAJORES_RPC_URL || "https://1rpc.io/celo/alfajores",
       accounts: [process.env.PRIVATE_KEY],
       chainId: 44787,
     },

@@ -5,16 +5,19 @@ import { Trophy, Frown, Clock, ArrowLeft, ArrowRight, Share2, Sparkles, Wallet }
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useUserStore } from "@/lib/store";
-import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useWriteContract, useWaitForTransactionReceipt, useChainId, useAccount } from "wagmi";
 import { TRIVIA_STAKE_ADDRESS, getCUSDAddress, TRIVIA_STAKE_ABI } from "@/lib/contract";
 
 function ResultComponent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const chainId = useChainId();
+  const { address, isConnected } = useAccount();
   const { recordMatch } = useUserStore();
 
   const dataRaw = searchParams.get("data");
   const mode = searchParams.get("mode");
+  const matchId = searchParams.get("matchId");
   const isFreeMode = mode === "free";
 
   let resultData = { score: 0, total: 3, avgTime: "0.0", win: false };
@@ -31,25 +34,68 @@ function ResultComponent() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [claimed, setClaimed] = useState(false);
-  const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
+  const [resolveTxHash, setResolveTxHash] = useState<`0x${string}` | null>(null);
+  const [claimTxHash, setClaimTxHash] = useState<`0x${string}` | null>(null);
+  const [resolving, setResolving] = useState(false);
+  const [resolved, setResolved] = useState(false);
 
   const { writeContractAsync } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ 
-    hash: txHash || "0x0000000000000000000000000000000000000000000000000000000000000000" 
+  const { isLoading: isConfirmingResolve, isSuccess: isResolveSuccess } = useWaitForTransactionReceipt({ 
+    hash: resolveTxHash || "0x0000000000000000000000000000000000000000000000000000000000000000" 
+  });
+  const { isLoading: isConfirmingClaim, isSuccess: isClaimSuccess } = useWaitForTransactionReceipt({ 
+    hash: claimTxHash || "0x0000000000000000000000000000000000000000000000000000000000000000" 
   });
 
+  // Resolve the match after game ends (only for staked matches)
+  useEffect(() => {
+    if (isFreeMode || !matchId || !isConnected || !address || resolved) return;
+    
+    const resolveMatch = async () => {
+      try {
+        setResolving(true);
+        const winners = win ? [address] : [];
+        const hash = await writeContractAsync({
+          address: TRIVIA_STAKE_ADDRESS as `0x${string}`,
+          abi: TRIVIA_STAKE_ABI,
+          functionName: "resolveMatch",
+          args: [matchId as `0x${string}`, winners],
+        });
+        setResolveTxHash(hash);
+      } catch (e) {
+        // If already resolved, we can proceed (maybe resolved by another tab)
+        if (e instanceof Error && e.message.includes("already resolved")) {
+          setResolved(true);
+        } else {
+          console.error("Resolve failed", e);
+        }
+      } finally {
+        setResolving(false);
+      }
+    };
+    resolveMatch();
+  }, [matchId, isFreeMode, win, address, isConnected, writeContractAsync, resolved]);
+
+  // Mark as fully resolved when transaction confirms
+  useEffect(() => {
+    if (isResolveSuccess) {
+      setResolved(true);
+      setResolving(false);
+    }
+  }, [isResolveSuccess]);
+
   const handleClaim = async () => {
-    if (!win || isFreeMode || claimed || claiming) return;
+    if (!win || isFreeMode || claimed || claiming || !resolved) return;
     try {
       setClaiming(true);
-      const token = getCUSDAddress() as `0x${string}`;
+      const token = getCUSDAddress(chainId) as `0x${string}`;
       const hash = await writeContractAsync({
         address: TRIVIA_STAKE_ADDRESS as `0x${string}`,
         abi: TRIVIA_STAKE_ABI,
         functionName: "claimReward",
         args: [token],
       });
-      setTxHash(hash);
+      setClaimTxHash(hash);
     } catch (e) {
       console.error("Claim failed", e);
       setClaiming(false);
@@ -57,11 +103,11 @@ function ResultComponent() {
   };
 
   useEffect(() => {
-    if (isSuccess) {
+    if (isClaimSuccess) {
       setClaimed(true);
       setClaiming(false);
     }
-  }, [isSuccess]);
+  }, [isClaimSuccess]);
 
   // Record match and fetch AI summary when component mounts
   useEffect(() => {
@@ -102,23 +148,7 @@ function ResultComponent() {
       .finally(() => setSummaryLoading(false));
   }, [score, total, avgTime]);
 
-  // Record match when component mounts (only for stake mode)
-  useEffect(() => {
-    if (isFreeMode) return;
-    
-    const earnedXP = score * 10;
-    const earnedCELO = win ? (total === 3 ? 0.05 : 0.03) : 0;
-    
-    recordMatch(
-      {
-        opponent: "BrainStake Bot",
-        result: win ? "win" : "loss",
-        earnedCELO,
-        earnedXP,
-      },
-      score
-    );
-  }, [isFreeMode]);
+
 
   return (
     <div className="flex flex-col h-full w-full justify-center p-6 text-center overflow-y-auto">
@@ -173,7 +203,7 @@ function ResultComponent() {
       {win && !isFreeMode && (
         <button
           onClick={handleClaim}
-          disabled={claiming || isConfirming || claimed}
+          disabled={claiming || isConfirmingClaim || claimed}
           className={`w-full py-4 rounded-2xl font-extrabold transition-all active:scale-[0.98] flex items-center justify-center gap-2 mb-6 ${
             claimed 
               ? "bg-emerald-500 text-black cursor-default"
@@ -181,7 +211,7 @@ function ResultComponent() {
           }`}
         >
           <Wallet className="w-5 h-5" />
-          {claiming || isConfirming ? (
+          {claiming || isConfirmingClaim ? (
             "Collecting..."
           ) : claimed ? (
             "Collected!"

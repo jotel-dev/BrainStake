@@ -1,8 +1,8 @@
 "use client";
 
-import { useAccount, useConnect, useDisconnect, useReadContract, Connector } from 'wagmi';
+import { useAccount, useConnect, useDisconnect, useReadContract, Connector, useChainId } from 'wagmi';
 import { formatUnits } from 'viem';
-import { CUSD_ADDRESS, ERC20_ABI } from '@/lib/contract';
+import { getCUSDAddress, ERC20_ABI } from '@/lib/contract';
 import { Wallet, LogOut, X, ExternalLink, AlertCircle, ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,11 +13,14 @@ export default function WalletConnect() {
   const { address, isConnected, connector } = useAccount();
   const { connectors, connect, error: connectError, status: connectStatus } = useConnect();
   const { disconnect } = useDisconnect();
+  const chainId = useChainId();
   const [mounted, setMounted] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
+  const currentCUSDAddress = getCUSDAddress(chainId);
+
   const { data: balanceData } = useReadContract({
-    address: CUSD_ADDRESS as `0x${string}`,
+    address: currentCUSDAddress as `0x${string}`,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
     args: [address as `0x${string}`],
@@ -82,7 +85,7 @@ export default function WalletConnect() {
     : availableWallets;
 
   if (isConnected && address) {
-    const formattedBalance = balanceData ? Number(formatUnits(balanceData as bigint, 18)).toFixed(2) : "0.00";
+    const formattedBalance = balanceData ? Number(formatUnits(balanceData as bigint, 6)).toFixed(2) : "0.00";
     const walletIcon = getWalletIcon(connector?.name || '');
     
     return (

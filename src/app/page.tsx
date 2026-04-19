@@ -14,8 +14,9 @@ import Link from "next/link";
 
 const STAKE_AMOUNT = "0.05";
 const DAILY_STAKE_AMOUNT = "0.01";
-const STAKE_AMOUNT_WEI = parseUnits(STAKE_AMOUNT, 18);
-const DAILY_STAKE_WEI = parseUnits(DAILY_STAKE_AMOUNT, 18);
+const CUSD_DECIMALS = 6;
+const STAKE_AMOUNT_WEI = parseUnits(STAKE_AMOUNT, CUSD_DECIMALS);
+const DAILY_STAKE_WEI = parseUnits(DAILY_STAKE_AMOUNT, CUSD_DECIMALS);
 
 const CATEGORIES = [
   { id: "sports", name: "Sports", icon: SportIcon, color: "text-green-400", bg: "bg-green-500/20" },
@@ -47,7 +48,7 @@ export default function Home() {
     query: { enabled: !!address }
   });
 
-  const displayBalance = balanceData ? parseFloat(formatUnits(balanceData as bigint, 18)).toFixed(2) : "0.00";
+  const displayBalance = balanceData ? parseFloat(formatUnits(balanceData as bigint, 6)).toFixed(2) : "0.00";
   const displayCelo = celoBalance ? parseFloat(formatUnits(celoBalance.value, celoBalance.decimals)).toFixed(2) : "0.00";
   
   const [showSplash, setShowSplash] = useState(true);
@@ -128,7 +129,7 @@ export default function Home() {
         address: TRIVIA_STAKE_ADDRESS as `0x${string}`,
         abi: TRIVIA_STAKE_ABI,
         functionName: 'createMatch',
-        args: [matchId, currentCUSDAddress as `0x${string}`],
+        args: [matchId, currentCUSDAddress as `0x${string}`, stakeWei],
       });
 
       setStatusText("Preparing game...");
