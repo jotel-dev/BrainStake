@@ -8,11 +8,11 @@ describe("TriviaStakeMulti", function () {
   let player1;
   let player2;
   let cUSD;
-  const matchId = ethers.keccak256(ethers.toUtf8Bytes("test-match-1"));
+  const matchId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("test-match-1"));
 
   // Helper to mint cUSD (assuming a mock ERC20 with mint)
   async function mintCUSD(to, amount) {
-    const amountWei = ethers.parseUnits(amount.toString(), 6);
+    const amountWei = ethers.utils.parseUnits(amount.toString(), 6);
     await cUSD.mint(to, amountWei);
     await cUSD.connect(to).approve(contract.target, amountWei);
   }
@@ -44,7 +44,7 @@ describe("TriviaStakeMulti", function () {
 
   describe("createMatch", function () {
     it("Should create a match with creator auto-joined", async function () {
-      const stakeWei = ethers.parseUnits("0.05", 6);
+      const stakeWei = ethers.utils.parseUnits("0.05", 6);
       await contract.createMatch(matchId, await cUSD.getAddress(), stakeWei);
 
       const match = await contract.getMatchInfo(matchId);
@@ -57,8 +57,8 @@ describe("TriviaStakeMulti", function () {
     });
 
     it("Should emit MatchCreated and PlayerJoined events", async function () {
-      const stakeWei = ethers.parseUnits("0.01", 6);
-      const testMatchId = ethers.keccak256(ethers.toUtf8Bytes("test-events"));
+      const stakeWei = ethers.utils.parseUnits("0.01", 6);
+      const testMatchId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("test-events"));
 
       await expect(contract.createMatch(testMatchId, await cUSD.getAddress(), stakeWei))
         .to.emit(contract, "MatchCreated")
@@ -68,22 +68,22 @@ describe("TriviaStakeMulti", function () {
     });
 
     it("Should revert if match already exists", async function () {
-      const stakeWei = ethers.parseUnits("0.05", 6);
+      const stakeWei = ethers.utils.parseUnits("0.05", 6);
       await expect(contract.createMatch(matchId, await cUSD.getAddress(), stakeWei))
         .to.be.revertedWith("Match exists");
     });
   });
 
   describe("joinMatch", function () {
-    const testMatchId = ethers.keccak256(ethers.toUtf8Bytes("test-match-2"));
+    const testMatchId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("test-match-2"));
 
     before(async function () {
-      const stakeWei = ethers.parseUnits("0.05", 6);
+      const stakeWei = ethers.utils.parseUnits("0.05", 6);
       await contract.createMatch(testMatchId, await cUSD.getAddress(), stakeWei);
     });
 
     it("Should allow another player to join", async function () {
-      const stakeWei = ethers.parseUnits("0.05", 6);
+      const stakeWei = ethers.utils.parseUnits("0.05", 6);
       await mintCUSD(player1, "0.05");
       await contract.connect(player1).joinMatch(testMatchId);
 
@@ -93,8 +93,8 @@ describe("TriviaStakeMulti", function () {
     });
 
     it("Should emit PlayerJoined event", async function () {
-      const testMatchId3 = ethers.keccak256(ethers.toUtf8Bytes("test-match-3"));
-      const stakeWei = ethers.parseUnits("0.05", 6);
+      const testMatchId3 = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("test-match-3"));
+      const stakeWei = ethers.utils.parseUnits("0.05", 6);
       await contract.createMatch(testMatchId3, await cUSD.getAddress(), stakeWei);
       await mintCUSD(player1, "0.05");
 
@@ -109,14 +109,14 @@ describe("TriviaStakeMulti", function () {
     });
 
     it("Should revert if match not found", async function () {
-      const fakeId = ethers.keccak256(ethers.toUtf8Bytes("fake-match"));
+      const fakeId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("fake-match"));
       await expect(contract.connect(player1).joinMatch(fakeId))
         .to.be.revertedWith("Match not found");
     });
 
     it("Should revert if match resolved", async function () {
-      const testMatchId4 = ethers.keccak256(ethers.toUtf8Bytes("test-match-4"));
-      const stakeWei = ethers.parseUnits("0.05", 6);
+      const testMatchId4 = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("test-match-4"));
+      const stakeWei = ethers.utils.parseUnits("0.05", 6);
       await contract.createMatch(testMatchId4, await cUSD.getAddress(), stakeWei);
       await contract.resolveMatch(testMatchId4, []); // resolve with no winners
 
@@ -126,10 +126,10 @@ describe("TriviaStakeMulti", function () {
   });
 
   describe("refund", function () {
-    const testMatchId = ethers.keccak256(ethers.toUtf8Bytes("test-refund-match"));
+    const testMatchId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("test-refund-match"));
 
     before(async function () {
-      const stakeWei = ethers.parseUnits("0.05", 6);
+      const stakeWei = ethers.utils.parseUnits("0.05", 6);
       await contract.createMatch(testMatchId, await cUSD.getAddress(), stakeWei);
       await mintCUSD(player1, "0.05");
       await contract.connect(player1).joinMatch(testMatchId);
@@ -155,8 +155,8 @@ describe("TriviaStakeMulti", function () {
     });
 
     it("Should revert if match resolved", async function () {
-      const resolvedMatchId = ethers.keccak256(ethers.toUtf8Bytes("resolved-match"));
-      const stakeWei = ethers.parseUnits("0.05", 6);
+      const resolvedMatchId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("resolved-match"));
+      const stakeWei = ethers.utils.parseUnits("0.05", 6);
       await contract.createMatch(resolvedMatchId, await cUSD.getAddress(), stakeWei);
       await contract.resolveMatch(resolvedMatchId, []);
 
@@ -166,10 +166,10 @@ describe("TriviaStakeMulti", function () {
   });
 
   describe("resolveMatch", function () {
-    const testMatchId = ethers.keccak256(ethers.toUtf8Bytes("test-resolve-match"));
+    const testMatchId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("test-resolve-match"));
 
     before(async function () {
-      const stakeWei = ethers.parseUnits("0.05", 6);
+      const stakeWei = ethers.utils.parseUnits("0.05", 6);
       await contract.createMatch(testMatchId, await cUSD.getAddress(), stakeWei);
       await mintCUSD(player1, "0.05");
       await contract.connect(player1).joinMatch(testMatchId);
@@ -188,8 +188,8 @@ describe("TriviaStakeMulti", function () {
     });
 
     it("Should allow creator to resolve with multiple winners", async function () {
-      const multiWinnerMatch = ethers.keccak256(ethers.toUtf8Bytes("multi-winner"));
-      const stakeWei = ethers.parseUnits("0.05", 6);
+      const multiWinnerMatch = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("multi-winner"));
+      const stakeWei = ethers.utils.parseUnits("0.05", 6);
       await contract.createMatch(multiWinnerMatch, await cUSD.getAddress(), stakeWei);
       await mintCUSD(player1, "0.05");
       await contract.connect(player1).joinMatch(multiWinnerMatch);
@@ -201,8 +201,8 @@ describe("TriviaStakeMulti", function () {
     });
 
     it("Should revert if not creator", async function () {
-      const otherMatch = ethers.keccak256(ethers.toUtf8Bytes("other-creator-match"));
-      const stakeWei = ethers.parseUnits("0.05", 6);
+      const otherMatch = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("other-creator-match"));
+      const stakeWei = ethers.utils.parseUnits("0.05", 6);
       await contract.createMatch(otherMatch, await cUSD.getAddress(), stakeWei);
 
       await expect(contract.connect(player1).resolveMatch(otherMatch, []))
@@ -215,8 +215,8 @@ describe("TriviaStakeMulti", function () {
     });
 
     it("Should take 10% house cut and distribute remainder", async function () {
-      const testMatchId2 = ethers.keccak256(ethers.toUtf8Bytes("test-house-cut"));
-      const stakeWei = ethers.parseUnits("0.06", 6); // 0.06 total (creator auto-joins with 0.06)
+      const testMatchId2 = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("test-house-cut"));
+      const stakeWei = ethers.utils.parseUnits("0.06", 6); // 0.06 total (creator auto-joins with 0.06)
       await contract.createMatch(testMatchId2, await cUSD.getAddress(), stakeWei);
       await mintCUSD(player1, "0.06");
       await contract.connect(player1).joinMatch(testMatchId2);
@@ -226,16 +226,16 @@ describe("TriviaStakeMulti", function () {
 
       const houseBalance = await contract.housePool(await cUSD.getAddress());
       // 10% of 0.12 = 0.012
-      expect(houseBalance).to.equal(ethers.parseUnits("0.012", 6));
+      expect(houseBalance).to.equal(ethers.utils.parseUnits("0.012", 6));
 
       const creatorReward = await contract.playerRewards(owner.address, await cUSD.getAddress());
       // 90% of 0.12 = 0.108
-      expect(creatorReward).to.equal(ethers.parseUnits("0.108", 6));
+      expect(creatorReward).to.equal(ethers.utils.parseUnits("0.108", 6));
     });
 
     it("Should allow zero winners (house takes all)", async function () {
-      const testMatchId3 = ethers.keccak256(ethers.toUtf8Bytes("test-house-takes-all"));
-      const stakeWei = ethers.parseUnits("0.05", 6);
+      const testMatchId3 = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("test-house-takes-all"));
+      const stakeWei = ethers.utils.parseUnits("0.05", 6);
       await contract.createMatch(testMatchId3, await cUSD.getAddress(), stakeWei);
 
       await contract.resolveMatch(testMatchId3, []);
@@ -246,10 +246,10 @@ describe("TriviaStakeMulti", function () {
   });
 
   describe("claimReward", function () {
-    const testMatchId = ethers.keccak256(ethers.toUtf8Bytes("test-claim-match"));
+    const testMatchId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("test-claim-match"));
 
     before(async function () {
-      const stakeWei = ethers.parseUnits("0.05", 6);
+      const stakeWei = ethers.utils.parseUnits("0.05", 6);
       await contract.createMatch(testMatchId, await cUSD.getAddress(), stakeWei);
       await mintCUSD(player1, "0.05");
       await contract.connect(player1).joinMatch(testMatchId);
@@ -269,8 +269,8 @@ describe("TriviaStakeMulti", function () {
     });
 
     it("Should emit RewardClaimed event", async function () {
-      const testMatchId2 = ethers.keccak256(ethers.toUtf8Bytes("test-claim-2"));
-      const stakeWei = ethers.parseUnits("0.05", 6);
+      const testMatchId2 = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("test-claim-2"));
+      const stakeWei = ethers.utils.parseUnits("0.05", 6);
       await contract.createMatch(testMatchId2, await cUSD.getAddress(), stakeWei);
       await mintCUSD(owner, "0.05");
       await contract.resolveMatch(testMatchId2, [owner.address]);
@@ -288,13 +288,13 @@ describe("TriviaStakeMulti", function () {
 
   describe("fundHousePool", function () {
     it("Should allow user to fund house pool from their own reward balance", async function () {
-      const testMatchId = ethers.keccak256(ethers.toUtf8Bytes("test-fund"));
-      const stakeWei = ethers.parseUnits("0.05", 6);
+      const testMatchId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("test-fund"));
+      const stakeWei = ethers.utils.parseUnits("0.05", 6);
       await contract.createMatch(testMatchId, await cUSD.getAddress(), stakeWei);
       await contract.resolveMatch(testMatchId, []); // house takes all, no reward
 
       // But we need a reward to fund. Let's create a match where owner wins and then fund.
-      const testMatchId2 = ethers.keccak256(ethers.toUtf8Bytes("test-fund2"));
+      const testMatchId2 = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("test-fund2"));
       await contract.createMatch(testMatchId2, await cUSD.getAddress(), stakeWei);
       await contract.resolveMatch(testMatchId2, [owner.address]);
 
