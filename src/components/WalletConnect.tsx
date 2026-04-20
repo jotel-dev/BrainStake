@@ -127,23 +127,8 @@ export default function WalletConnect() {
   }
 
   const onSmartConnect = async () => {
-    // Try MiniPay first if available
-    if (isMiniPayAvailable) {
-      await connectToMiniPay();
-      return;
-    }
-
-    // Look for an injected connector that is available
-    const injectedConnector = connectors.find(c => c.id === 'injected');
-    
-    // If we're in a wallet browser (MetaMask, MiniPay, etc.), the injected connector 
-    // is usually the one we want. We'll attempt direct connection if found.
-    if (injectedConnector) {
-      handleConnect(injectedConnector);
-    } else {
-      // Fallback to modal if no direct injected connector found
-      setShowModal(true);
-    }
+    // Show modal to let user choose wallet
+    setShowModal(true);
   };
 
   return (
