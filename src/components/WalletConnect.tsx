@@ -29,7 +29,7 @@ export default function WalletConnect() {
     }
   });
 
-  const { isMiniPayAvailable, connectToMiniPay } = useMiniPay();
+  const { isMiniPayAvailable, isInMiniPayBrowser, connectToMiniPay } = useMiniPay();
 
   useEffect(() => {
     setMounted(true);
@@ -62,13 +62,20 @@ export default function WalletConnect() {
     setShowModal(false);
   };
 
+  const handleMiniPayConnect = () => {
+    if (isMiniPayAvailable) {
+      connectToMiniPay();
+    } else {
+      setShowModal(true);
+    }
+  };
+
   const availableWallets = connectors.map((c) => ({
     name: formatWalletName(c.name),
     icon: getWalletIcon(c.name),
     connector: c
   }));
 
-  // Add MiniPay at the top if available
   const prioritizedWallets = isMiniPayAvailable 
     ? [
         {
@@ -126,10 +133,43 @@ export default function WalletConnect() {
     );
   }
 
+  const showMiniPayButton = isMiniPayAvailable || isInMiniPayBrowser;
+
   const onSmartConnect = async () => {
-    // Show modal to let user choose wallet
-    setShowModal(true);
+    if (showMiniPayButton && isMiniPayAvailable) {
+      connectToMiniPay();
+    } else {
+      setShowModal(true);
+    }
   };
+
+  if (showMiniPayButton) {
+    return (
+      <>
+        <button
+          onClick={onSmartConnect}
+          className="group relative w-full overflow-hidden rounded-2xl bg-gradient-to-r from-[#35D07F] to-[#2bb36f] p-[2px]"
+        >
+          <div className="relative w-full py-4 bg-gradient-to-r from-[#35D07F] to-[#2bb36f] rounded-[14px] transition-all group-hover:opacity-90 flex justify-center items-center gap-3">
+            <div className="w-10 h-10 bg-black/20 rounded-xl flex items-center justify-center">
+              <MiniPayIcon className="w-6 h-6 text-black" />
+            </div>
+            <span className="text-black font-extrabold text-lg">Connect with MiniPay</span>
+          </div>
+          <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-all rounded-2xl" />
+        </button>
+
+        {!isInMiniPayBrowser && (
+          <button
+            onClick={() => setShowModal(true)}
+            className="w-full mt-3 py-2 text-zinc-500 text-sm hover:text-zinc-400 transition-colors"
+          >
+            Use another wallet
+          </button>
+        )}
+      </>
+    );
+  }
 
   return (
     <>
@@ -201,7 +241,11 @@ export default function WalletConnect() {
                           </div>
                           <div className="text-left">
                             <span className="block font-bold text-white text-base">{wallet.name}</span>
-                            <span className="text-xs text-zinc-500">Click to connect</span>
+                            <span className="text-xs text-zinc-500">
+                              {isInMiniPayBrowser && wallet.name === 'MiniPay' 
+                                ? "Tap to connect instantly" 
+                                : "Click to connect"}
+                            </span>
                           </div>
                         </div>
                         <ChevronRight className="w-5 h-5 text-zinc-600 group-hover:text-[#35D07F] group-hover:translate-x-1 transition-all" />
