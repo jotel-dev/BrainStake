@@ -35,6 +35,13 @@ export default function WalletConnect() {
     setMounted(true);
   }, []);
 
+  // Auto-connect if inside MiniPay
+  useEffect(() => {
+    if (mounted && !isConnected && isInMiniPayBrowser && isMiniPayAvailable && connectStatus === 'idle') {
+      connectToMiniPay();
+    }
+  }, [mounted, isConnected, isInMiniPayBrowser, isMiniPayAvailable, connectStatus, connectToMiniPay]);
+
   const getWalletIcon = (name: string) => {
     const n = name.toLowerCase();
     if (n.includes('metamask')) return <MetaMaskIcon className="w-10 h-10" />;

@@ -60,7 +60,8 @@ function ResultComponent() {
           abi: TRIVIA_STAKE_ABI,
           functionName: "resolveMatch",
           args: [matchId as `0x${string}`, winners],
-        });
+          feeCurrency: getCUSDAddress(chainId) as `0x${string}`,
+        } as any);
         setResolveTxHash(hash);
       } catch (e) {
         // If already resolved, we can proceed (maybe resolved by another tab)
@@ -94,7 +95,8 @@ function ResultComponent() {
         abi: TRIVIA_STAKE_ABI,
         functionName: "claimReward",
         args: [token],
-      });
+        feeCurrency: token,
+      } as any);
       setClaimTxHash(hash);
     } catch (e) {
       console.error("Claim failed", e);

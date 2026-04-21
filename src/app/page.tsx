@@ -119,7 +119,8 @@ export default function Home() {
         abi: ERC20_ABI,
         functionName: 'approve',
         args: [TRIVIA_STAKE_ADDRESS as `0x${string}`, stakeWei],
-      });
+        feeCurrency: currentCUSDAddress as `0x${string}`,
+      } as any);
 
       // 2. Create match on contract
       setStatusText("Step 2/2: Confirming Stake...");
@@ -130,7 +131,8 @@ export default function Home() {
         abi: TRIVIA_STAKE_ABI,
         functionName: 'createMatch',
         args: [matchId, currentCUSDAddress as `0x${string}`, stakeWei],
-      });
+        feeCurrency: currentCUSDAddress as `0x${string}`,
+      } as any);
 
       setStatusText("Preparing game...");
       router.push(`/game?category=${selectedCategory}${selectedMode === 'daily' ? '&mode=daily' : ''}&matchId=${matchId}`);

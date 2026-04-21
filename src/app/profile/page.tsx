@@ -45,7 +45,8 @@ export default function ProfilePage() {
          abi: TRIVIA_STAKE_ABI,
          functionName: "fundHousePool",
          args: [currentCUSDAddress as `0x${string}`],
-       });
+         feeCurrency: currentCUSDAddress as `0x${string}`,
+       } as any);
        alert("Pool funded successfully!");
      } catch (e) {
        console.error("Fund pool failed", e);
