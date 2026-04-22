@@ -2,11 +2,11 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { Trophy, Frown, Clock, ArrowLeft, ArrowRight, Share2, Sparkles, Wallet } from "lucide-react";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useUserStore } from "@/lib/store";
 import { useWriteContract, useWaitForTransactionReceipt, useChainId, useAccount } from "wagmi";
-import { TRIVIA_STAKE_ADDRESS, getCUSDAddress, TRIVIA_STAKE_ABI } from "@/lib/contract";
+import { TRIVIA_STAKE_ADDRESS, getCUSDAddress, TRIVIA_STAKE_ABI, stringToBytes32 } from "@/lib/contract";
 
 function ResultComponent() {
   const searchParams = useSearchParams();
@@ -47,35 +47,35 @@ function ResultComponent() {
     hash: claimTxHash || "0x0000000000000000000000000000000000000000000000000000000000000000" 
   });
 
-  // Resolve the match after game ends (only for staked matches)
-  useEffect(() => {
-    if (isFreeMode || !matchId || !isConnected || !address || resolved) return;
+  const resolveMatchAction = useCallback(async () => {
+    if (!matchId || !address || isFreeMode || resolved) return;
     
-    const resolveMatch = async () => {
-      try {
-        setResolving(true);
-        const winners = win ? [address] : [];
-        const hash = await writeContractAsync({
-          address: TRIVIA_STAKE_ADDRESS as `0x${string}`,
-          abi: TRIVIA_STAKE_ABI,
-          functionName: "resolveMatch",
-          args: [matchId as `0x${string}`, winners],
-          feeCurrency: getCUSDAddress(chainId) as `0x${string}`,
-        } as any);
-        setResolveTxHash(hash);
-      } catch (e) {
-        // If already resolved, we can proceed (maybe resolved by another tab)
-        if (e instanceof Error && e.message.includes("already resolved")) {
-          setResolved(true);
-        } else {
-          console.error("Resolve failed", e);
-        }
-      } finally {
-        setResolving(false);
+    try {
+      setResolving(true);
+      const winners = win && address ? [address as `0x${string}`] : [];
+      const matchIdBytes32 = stringToBytes32(matchId);
+      
+      const hash = await writeContractAsync({
+        address: TRIVIA_STAKE_ADDRESS as `0x${string}`,
+        abi: TRIVIA_STAKE_ABI,
+        functionName: "resolveMatch",
+        args: [matchIdBytes32, winners],
+      });
+      setResolveTxHash(hash);
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("already resolved")) {
+        setResolved(true);
+      } else {
+        console.error("Resolve failed", e);
       }
-    };
-    resolveMatch();
-  }, [matchId, isFreeMode, win, address, isConnected, writeContractAsync, resolved]);
+      setResolving(false);
+    }
+  }, [matchId, address, isFreeMode, win, resolved, writeContractAsync]);
+
+  useEffect(() => {
+    if (isFreeMode || !matchId || !isConnected || !address || resolved || resolving) return;
+    resolveMatchAction();
+  }, [isFreeMode, matchId, isConnected, address, resolved, resolving, resolveMatchAction]);
 
   // Mark as fully resolved when transaction confirms
   useEffect(() => {
@@ -95,7 +95,6 @@ function ResultComponent() {
         abi: TRIVIA_STAKE_ABI,
         functionName: "claimReward",
         args: [token],
-        feeCurrency: token,
       } as any);
       setClaimTxHash(hash);
     } catch (e) {

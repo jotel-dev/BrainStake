@@ -29,18 +29,17 @@ export default function WalletConnect() {
     }
   });
 
-  const { isMiniPayAvailable, isInMiniPayBrowser, connectToMiniPay } = useMiniPay();
+  const { isMiniPayAvailable, isInMiniPayBrowser, connectToMiniPay, autoConnectIfMiniPay } = useMiniPay();
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Auto-connect if inside MiniPay
   useEffect(() => {
-    if (mounted && !isConnected && isInMiniPayBrowser && isMiniPayAvailable && connectStatus === 'idle') {
-      connectToMiniPay();
+    if (mounted && !isConnected && isInMiniPayBrowser && isMiniPayAvailable) {
+      autoConnectIfMiniPay();
     }
-  }, [mounted, isConnected, isInMiniPayBrowser, isMiniPayAvailable, connectStatus, connectToMiniPay]);
+  }, [mounted, isConnected, isInMiniPayBrowser, isMiniPayAvailable, autoConnectIfMiniPay]);
 
   const getWalletIcon = (name: string) => {
     const n = name.toLowerCase();
@@ -151,6 +150,14 @@ export default function WalletConnect() {
   };
 
   if (showMiniPayButton) {
+    if (isInMiniPayBrowser && isConnected) {
+      return null;
+    }
+    
+    if (isInMiniPayBrowser && isMiniPayAvailable) {
+      return null;
+    }
+    
     return (
       <>
         <button

@@ -1,14 +1,11 @@
 import { createConfig, http, createStorage } from 'wagmi';
 import { celo, celoAlfajores } from 'wagmi/chains';
-import { coinbaseWallet, walletConnect, injected } from 'wagmi/connectors';
+import { coinbaseWallet, injected } from 'wagmi/connectors';
 
 export const config = createConfig({
-  chains: [celoAlfajores, celo],
+  chains: [celo, celoAlfajores],
   multiInjectedProviderDiscovery: true,
   connectors: [
-    walletConnect({
-      projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '8d0f371771159754a9e4c4e84a4d3dd2',
-    }),
     injected({
       target: 'coinbaseWallet',
     }),
@@ -24,7 +21,7 @@ export const config = createConfig({
     storage: window.localStorage,
   }) : undefined,
   transports: {
-    [celoAlfajores.id]: http(process.env.NEXT_PUBLIC_CELO_RPC_URL || 'https://alfajores-forno.celo-testnet.org'),
     [celo.id]: http(process.env.NEXT_PUBLIC_CELO_RPC_URL || 'https://forno.celo.org'),
+    [celoAlfajores.id]: http(process.env.NEXT_PUBLIC_CELO_RPC_URL || 'https://alfajores-forno.celo-testnet.org'),
   },
 });

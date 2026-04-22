@@ -1,3 +1,5 @@
+import { bytesToHex, padBytes } from "viem";
+
 export const TRIVIA_STAKE_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0xF34d1C20e62DE0d72E7a4828A70F17b3AFDCfA8E";
 
 // Mainnet addresses
@@ -9,8 +11,16 @@ export const ALFAJORES_CUSD_ADDRESS = "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC
 
 export const getCUSDAddress = (chainId?: number) => {
   if (chainId === 44787) return ALFAJORES_CUSD_ADDRESS;
+  if (chainId === 42220) return CUSD_ADDRESS;
   return CUSD_ADDRESS;
 };
+
+export function stringToBytes32(value: string | null | undefined): `0x${string}` {
+  if (!value) return "0x0000000000000000000000000000000000000000000000000000000000000000";
+  const bytes = new TextEncoder().encode(value);
+  const padded = padBytes(bytes, { size: 32 });
+  return bytesToHex(padded);
+}
 
 export const TRIVIA_STAKE_ABI = [
   // Create a new match; creator is auto-joined as first player

@@ -1,35 +1,28 @@
 "use client";
 
-import { useConnect } from "wagmi";
+import { useAccount, useConnect, Connector } from "wagmi";
 import { useEffect, useState, useCallback } from "react";
-
-const MINIPAY_IDS = [
-  "io.coinbase.wallet",
-  "com.coincash.wallet",
-  "com.rabbyio.changeWallet",
-];
 
 export function useMiniPay() {
   const { connectors, connect } = useConnect();
+  const { isConnected } = useAccount();
   const [isMiniPayAvailable, setIsMiniPayAvailable] = useState(false);
   const [isInMiniPayBrowser, setIsInMiniPayBrowser] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [miniPayConnector, setMiniPayConnector] = useState<ReturnType<typeof connectors[number]>>();
+  const [miniPayConnector, setMiniPayConnector] = useState<Connector | null>(null);
 
-  const detectMiniPayBrowser = useCallback(() => {
+  const detectMiniPayBrowser = useCallback((): boolean => {
     if (typeof window === "undefined") return false;
     
     const ua = navigator.userAgent.toLowerCase();
     const isMiniPayUA = ua.includes("minipay") || 
                         ua.includes("coincash") ||
-                        ua.includes("coinbase") ||
-                        (ua.includes("mobile") && ua.includes("celo"));
+                        ua.includes("coinbase");
     
-    const hasMiniPayWindow = typeof window !== "undefined" && 
-                             "ethereum" in window && 
-                             (window as unknown as { ethereum?: { isMiniPay?: boolean } }).ethereum?.isMiniPay === true;
+    const hasMiniPayFlag = "ethereum" in window && 
+                           (window as unknown as { ethereum?: { isMiniPay?: boolean } }).ethereum?.isMiniPay === true;
     
-    return isMiniPayUA || hasMiniPayWindow;
+    return isMiniPayUA || hasMiniPayFlag;
   }, []);
 
   useEffect(() => {
@@ -37,23 +30,26 @@ export function useMiniPay() {
   }, [detectMiniPayBrowser]);
 
   useEffect(() => {
-    const connector = connectors.find((c) => {
+    const miniPayConnectorInstance = connectors.find((c) => {
       const id = c.id.toLowerCase();
       const name = c.name.toLowerCase();
-      return MINIPAY_IDS.some(
-        (mid) => id.includes(mid.replace(".", "")) || name.includes(mid.replace(".", ""))
-      );
-    });
+      return id.includes("coinbase") || 
+             name.includes("coinbase") ||
+             id.includes("coincash") ||
+             name.includes("coincash");
+    }) || null;
 
-    setIsMiniPayAvailable(!!connector);
-    setMiniPayConnector(connector);
+    setIsMiniPayAvailable(!!miniPayConnectorInstance);
+    setMiniPayConnector(miniPayConnectorInstance);
   }, [connectors]);
 
-  const connectToMiniPay = async () => {
+  const connectToMiniPay = useCallback(async () => {
     if (!miniPayConnector) {
       console.error("MiniPay connector not found");
       return;
     }
+
+    if (isConnected) return;
 
     setIsConnecting(true);
     try {
@@ -63,12 +59,19 @@ export function useMiniPay() {
     } finally {
       setIsConnecting(false);
     }
-  };
+  }, [miniPayConnector, connect, isConnected]);
+
+  const autoConnectIfMiniPay = useCallback(async () => {
+    if (isInMiniPayBrowser && !isConnected && miniPayConnector) {
+      await connectToMiniPay();
+    }
+  }, [isInMiniPayBrowser, isConnected, miniPayConnector, connectToMiniPay]);
 
   return {
     isMiniPayAvailable: isMiniPayAvailable || isInMiniPayBrowser,
     isInMiniPayBrowser,
     connectToMiniPay,
+    autoConnectIfMiniPay,
     isConnecting,
     miniPayConnector,
   };

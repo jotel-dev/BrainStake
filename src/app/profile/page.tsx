@@ -27,7 +27,7 @@ export default function ProfilePage() {
      abi: TRIVIA_STAKE_ABI,
      functionName: "housePool",
      args: [currentCUSDAddress as `0x${string}`],
-     query: { enabled: !!address }
+     query: { enabled: !!address && !!currentCUSDAddress }
    });
 
    const housePoolBalance = housePoolData ? parseFloat(formatUnits(housePoolData as bigint, 6)) : 0;

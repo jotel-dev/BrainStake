@@ -124,7 +124,8 @@ export default function Home() {
 
       // 2. Create match on contract
       setStatusText("Step 2/2: Confirming Stake...");
-      const matchId = keccak256(toHex(`${address}-${Date.now()}`));
+      const matchIdHex = keccak256(toHex(`${address}-${Date.now()}`));
+      const matchId = typeof matchIdHex === 'string' ? matchIdHex as `0x${string}` : matchIdHex;
       
       await writeAsync({
         address: TRIVIA_STAKE_ADDRESS as `0x${string}`,
