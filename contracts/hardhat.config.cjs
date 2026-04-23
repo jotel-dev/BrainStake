@@ -9,7 +9,7 @@ module.exports = {
       chainId: 44787,
     },
     celo: {
-      url: "https://1rpc.io/celo",
+      url: "https://forno.celo.org",
       accounts: [process.env.PRIVATE_KEY],
     },
     alfajores: {

@@ -21,8 +21,8 @@ async function main() {
   const TriviaStakeMulti = await ethers.getContractFactory("TriviaStakeMulti");
   const contract = await TriviaStakeMulti.deploy(cusdAddress, usdcAddress);
 
-  await contract.waitForDeployment();
-  const address = await contract.getAddress();
+  await contract.deployed();
+  const address = contract.address;
 
   console.log(`✅ TriviaStakeMulti deployed to ${network.name}:`, address);
   console.log("\n📋 Next steps:");
